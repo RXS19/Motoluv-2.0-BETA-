@@ -1,0 +1,16 @@
+# Motoluv crawler policy
+# Allow OpenAI Search to discover and cite public Motoluv content.
+User-agent: OAI-SearchBot
+Allow: /
+
+# Allow major search crawlers.
+User-agent: Googlebot
+Allow: /
+
+User-agent: Bingbot
+Allow: /
+
+User-agent: *
+Allow: /
+
+Sitemap: https://motoluv.mx/sitemap.xml

@@ -1,0 +1,6 @@
+{
+  "name": "MOTOLUV - SUBE.CONECTA.RUEDA",
+  "description": "Plataforma de compra y venta de motocicletas certificadas en México.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

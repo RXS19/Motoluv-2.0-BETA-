@@ -1,0 +1,66 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 650 140" width="650" height="140">
+  <defs>
+    <!-- Dark Mode / Original shading -->
+    <linearGradient id="nramp1" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#18181B"/>
+      <stop offset="100%" stop-color="#09090B"/>
+    </linearGradient>
+    <linearGradient id="nramp1Dark" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#27272A"/>
+      <stop offset="100%" stop-color="#09090B"/>
+    </linearGradient>
+    <linearGradient id="nramp2" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#18181B"/>
+      <stop offset="100%" stop-color="#09090B"/>
+    </linearGradient>
+    <linearGradient id="nramp2Dark" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#27272A"/>
+      <stop offset="100%" stop-color="#09090B"/>
+    </linearGradient>
+    <linearGradient id="nramp3" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#18181B"/>
+      <stop offset="100%" stop-color="#09090B"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Geometric Symbol (Ramps / Escalating Blocks) -->
+  <g transform="translate(10, 15)">
+    <!-- Block 1 (Smallest - Left) -->
+    <polygon points="0,110 0,90 42,72 42,110" fill="url(#nramp1)"/>
+    <polygon points="42,72 58,94 58,110 42,110" fill="url(#nramp1Dark)"/>
+
+    <!-- Block 2 (Middle) -->
+    <polygon points="58,110 58,80 115,44 115,110" fill="url(#nramp2)"/>
+    <polygon points="115,44 135,76 135,110 115,110" fill="url(#nramp2Dark)"/>
+
+    <!-- Block 3 (Tallest - Right) -->
+    <polygon points="135,110 135,62 195,10 195,110" fill="url(#nramp3)"/>
+  </g>
+
+  <!-- Typography NOVATECH -->
+  <g fill="#09090B">
+    <!-- N -->
+    <path d="M 235,125 L 235,25 L 253,25 L 273,95 L 273,25 L 289,25 L 289,125 L 271,125 L 251,55 L 251,125 Z"/>
+    
+    <!-- O -->
+    <path d="M 326,23 C 342,23 352,34 352,50 L 352,100 C 352,116 342,127 326,127 C 310,127 300,116 300,100 L 300,50 C 300,34 310,23 326,23 Z M 326,39 C 320,39 316,44 316,52 L 316,98 C 316,106 320,111 326,111 C 332,111 336,106 336,98 L 336,52 C 336,44 332,39 326,39 Z"/>
+    
+    <!-- V -->
+    <path d="M 363,25 L 380,25 L 393,101 L 406,25 L 423,25 L 402,125 L 384,125 Z"/>
+    
+    <!-- A -->
+    <path d="M 445,25 L 464,25 L 485,125 L 468,125 L 463,100 L 446,100 L 441,125 L 424,125 Z M 454,49 L 449,85 L 460,85 Z"/>
+    
+    <!-- T -->
+    <path d="M 488,25 L 532,25 L 532,41 L 519,41 L 519,125 L 501,125 L 501,41 L 488,41 Z"/>
+    
+    <!-- E -->
+    <path d="M 541,25 L 576,25 L 576,41 L 558,41 L 558,67 L 574,67 L 574,83 L 558,83 L 558,109 L 577,109 L 577,125 L 541,125 Z"/>
+    
+    <!-- C -->
+    <path d="M 610,23 C 625,23 634,32 636,45 L 619,48 C 618,42 615,39 610,39 C 604,39 600,44 600,53 L 600,97 C 600,106 604,111 610,111 C 615,111 618,108 619,102 L 636,105 C 634,118 625,127 610,127 C 594,127 584,116 584,100 L 584,50 C 584,34 594,23 610,23 Z"/>
+    
+    <!-- H -->
+    <path d="M 645,25 L 663,25 L 663,67 L 682,67 L 682,25 L 700,25 L 700,125 L 682,125 L 682,83 L 663,83 L 663,125 L 645,125 Z"/>
+  </g>
+</svg>

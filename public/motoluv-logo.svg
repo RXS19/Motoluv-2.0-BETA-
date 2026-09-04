@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 680 160" width="680" height="160" style="background:#000000;">
+  <defs>
+    <style>
+      .brand-m { font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; font-weight: 900; font-style: italic; }
+      .brand-s { font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; font-weight: 900; font-style: italic; }
+    </style>
+  </defs>
+  <rect width="100%" height="100%" fill="#000000" />
+  <g transform="translate(20, 10)">
+    <text x="20" y="88" fill="#FFFFFF" class="brand-m" font-size="92" letter-spacing="4">MOTO</text>
+    <rect x="330" y="8" width="210" height="92" rx="18" ry="18" fill="#E10600" />
+    <text x="435" y="88" fill="#FFFFFF" class="brand-m" font-size="92" letter-spacing="3" text-anchor="middle">LUV</text>
+    <text x="340" y="135" fill="#E10600" class="brand-s" font-size="20" letter-spacing="8" text-anchor="middle">SUBE CONECTA RUEDA</text>
+  </g>
+</svg>

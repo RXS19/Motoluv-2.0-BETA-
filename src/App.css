@@ -1,0 +1,130 @@
+/* Global App styles */
+
+@import url('https://fonts.googleapis.com/css2?family=Oswald:wght@500;600;700&family=Inter:wght@300;400;500;600;700&display=swap');
+
+.App {
+  min-height: 100vh;
+  background-color: #0a0a0a;
+  color: #f4f4f5;
+}
+
+body {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  background: #0a0a0a;
+  color: #f4f4f5;
+}
+
+.font-display {
+  font-family: 'Oswald', sans-serif;
+  letter-spacing: 0.02em;
+}
+
+/* Grid background */
+.grid-bg {
+  background-image:
+    linear-gradient(rgba(255,255,255,0.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255,255,255,0.03) 1px, transparent 1px);
+  background-size: 60px 60px;
+}
+
+.hero-vignette {
+  background: radial-gradient(ellipse at center, transparent 0%, rgba(10,10,10,0.5) 50%, #0a0a0a 100%);
+}
+
+/* Red brand colors matching Motoluv reference */
+:root {
+  --red-brand: #E10600;
+}
+
+/* Red glow */
+.red-glow {
+  box-shadow: 0 0 40px rgba(225, 6, 0, 0.25);
+}
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: #0a0a0a; }
+::-webkit-scrollbar-thumb { background: #27272a; border-radius: 6px; }
+::-webkit-scrollbar-thumb:hover { background: #3f3f46; }
+
+/* Bounce arrow */
+@keyframes softBounce {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(6px); }
+}
+.bounce-arrow { animation: softBounce 2s ease-in-out infinite; }
+
+/* Card hover */
+.moto-card {
+  transition: transform 0.35s ease, border-color 0.35s ease, box-shadow 0.35s ease;
+}
+.moto-card:hover {
+  transform: translateY(-4px);
+  border-color: rgba(225, 6, 0, 0.6);
+  box-shadow: 0 20px 40px -20px rgba(225, 6, 0, 0.35);
+}
+
+.moto-card img {
+  transition: transform 0.6s ease;
+}
+.moto-card:hover img {
+  transform: scale(1.05);
+}
+
+/* Utility */
+.text-red-brand { color: #E10600; }
+.bg-red-brand { background-color: #E10600; }
+.border-red-brand { border-color: #E10600; }
+
+/* Reusable red button with hover glow */
+.btn-red {
+  background-color: #E10600;
+  color: #fff;
+  transition: background-color 0.25s ease, box-shadow 0.25s ease, transform 0.15s ease;
+  cursor: pointer;
+}
+.btn-red:hover {
+  background-color: #ff1a14;
+  box-shadow: 0 0 24px rgba(225, 6, 0, 0.55), 0 0 6px rgba(225, 6, 0, 0.4);
+}
+.btn-red:active { transform: translateY(1px); }
+
+.btn-outline {
+  background-color: transparent;
+  color: #fff;
+  border: 1px solid rgba(255,255,255,0.2);
+  transition: border-color 0.25s ease, color 0.25s ease, box-shadow 0.25s ease, background-color 0.25s ease;
+}
+.btn-outline:hover {
+  border-color: #E10600;
+  color: #E10600;
+  background-color: rgba(225, 6, 0, 0.08);
+  box-shadow: 0 0 20px rgba(225, 6, 0, 0.25);
+}
+
+/* Any link inside nav should glow red on hover */
+.hover-red-glow:hover {
+  color: #E10600;
+  text-shadow: 0 0 8px rgba(225, 6, 0, 0.4);
+}
+
+/* Package card with red glow on hover */
+.package-card {
+  transition: border-color 0.3s ease, box-shadow 0.3s ease, transform 0.3s ease;
+}
+.package-card:hover {
+  border-color: rgba(225, 6, 0, 0.7);
+  box-shadow: 0 0 45px rgba(225, 6, 0, 0.35), 0 0 15px rgba(225, 6, 0, 0.2);
+  transform: translateY(-4px);
+}
+
+.hero-title {
+  font-family: 'Oswald', sans-serif;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  line-height: 0.95;
+}
+
+.uppercase-tight {
+  letter-spacing: 0.03em;
+}
