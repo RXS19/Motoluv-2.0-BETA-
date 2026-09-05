@@ -144,29 +144,10 @@ export const resolveOperationTimeline = (item, tracking = null) => {
   let badgeLabel = 'Apartado';
   let badgeColor = 'amber';
 
-  const isNod000013 = String(nod).toUpperCase() === 'NOD-000013';
-
   if (isRejected) {
     activeStageKey = 'apartado';
     badgeLabel = 'Motocicleta Rechazada';
     badgeColor = 'red';
-  } else if (isNod000013) {
-    // Specific mandatory requirement for test case NOD-000013:
-    // ✓ Apartado, ● Contrato, ○ Pago, ○ Autorización, ○ Transferencia, ○ Entrega
-    isContractCompleted = false;
-    isContractInProgress = true;
-    isPagoCompleted = false;
-    isPagoInProgress = false;
-    isAuthCompleted = false;
-    isAuthInProgress = false;
-    isTransferCompleted = false;
-    isTransferInProgress = false;
-    isDeliveryCompleted = false;
-    isDeliveryInProgress = false;
-
-    activeStageKey = 'contrato';
-    badgeLabel = 'Contrato';
-    badgeColor = 'blue';
   } else if (trackingObj) {
     // Stage completion evaluation with operation_tracking as truth:
     // Entrega → delivery_status / delivery_completed_at
