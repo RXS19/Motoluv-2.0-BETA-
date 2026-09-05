@@ -46,6 +46,17 @@ const MotoCard = ({ moto, showScore = true, showStatus = false }) => {
   // Score is ONLY visible if user is logged in
   const canSeeScore = Boolean(user && showScore);
 
+  const rawScore = moto.score !== undefined && moto.score !== null
+    ? Number(moto.score)
+    : (moto.rating !== undefined && moto.rating !== null ? Number(moto.rating) : null);
+
+  const hasScore = rawScore !== null && !isNaN(rawScore);
+  const normalizedScore = hasScore
+    ? (rawScore > 10 ? rawScore / 20 : rawScore > 5 ? rawScore / 2 : rawScore)
+    : 0;
+  // Redondea siempre para arriba, únicamente para colorear estrellas
+  const starCount = hasScore ? Math.min(5, Math.max(0, Math.ceil(normalizedScore))) : 0;
+
   const handleFavoriteClick = (e) => {
     e.preventDefault();
     e.stopPropagation();
@@ -165,12 +176,12 @@ const MotoCard = ({ moto, showScore = true, showStatus = false }) => {
           </span>
         </div>
 
-        {canSeeScore && moto.rating && (
+        {canSeeScore && hasScore && (
           <div className="mt-3 pt-3 border-t border-black flex items-center justify-between text-xs">
             <span className="text-zinc-500 flex items-center gap-1"><Wrench size={11} /> Score Mecánico</span>
             <span className="flex gap-0.5">
               {Array.from({ length: 5 }).map((_, i) => (
-                <Star key={i} size={12} className={i < moto.rating ? 'fill-yellow-400 text-yellow-400' : 'text-zinc-700'} />
+                <Star key={i} size={12} className={i < starCount ? 'fill-yellow-400 text-yellow-400' : 'text-zinc-700'} />
               ))}
             </span>
           </div>

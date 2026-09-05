@@ -325,6 +325,17 @@ const MotoDetailPage = () => {
     ? Number(moto.score) 
     : null;
 
+  const rawScoreForStars = scoreValue !== null
+    ? scoreValue
+    : (moto && moto.rating !== undefined && moto.rating !== null && !isNaN(Number(moto.rating)) ? Number(moto.rating) : null);
+
+  const normalizedScore = rawScoreForStars !== null
+    ? (rawScoreForStars > 10 ? rawScoreForStars / 20 : rawScoreForStars > 5 ? rawScoreForStars / 2 : rawScoreForStars)
+    : 0;
+
+  // Redondea siempre para arriba, únicamente para colorear estrellas
+  const starCount = rawScoreForStars !== null ? Math.min(5, Math.max(0, Math.ceil(normalizedScore))) : 0;
+
   return (
     <div className="max-w-7xl mx-auto px-5 lg:px-8 py-8">
       <div className="flex items-center gap-2 text-xs text-zinc-500 mb-6">
@@ -646,7 +657,7 @@ const MotoDetailPage = () => {
             </h1>
             <div className="flex items-center gap-1 mt-3">
               {Array.from({ length: 5 }).map((_, i) => (
-                <Star key={i} size={14} className={i < (Number(moto.rating) || 0) ? 'fill-yellow-400 text-yellow-400' : 'text-zinc-700'} />
+                <Star key={i} size={14} className={i < starCount ? 'fill-yellow-400 text-yellow-400' : 'text-zinc-700'} />
               ))}
               <span className="text-xs text-zinc-400 ml-1">({moto.views ?? 0} vistas)</span>
             </div>
