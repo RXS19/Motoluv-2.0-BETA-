@@ -72,16 +72,15 @@ export const TIMELINE_STAGES = [
 ];
 
 /**
- * Resolves the operational progress and status for an apartado item from real Supabase data.
- * Source of truth: operation_tracking table
- * Stages: APARTADO → CONTRATO → PAGO → AUTORIZACIÓN → TRANSFERENCIA → ENTREGA
- * Mappings:
- * - Contrato → contract_completed_at
- * - Pago → payment_status (apartado_payment_completed_at corresponds ONLY to initial apartado and MUST NOT mark Pago as completed)
- * - Autorización → authorization_status
- * - Transferencia → transfer_status
- * - Entrega → delivery_status
- * - Etapa actual → current_stage
+ * Resolves the operational progress and status for an apartado item.
+ * Rules:
+ * 1. Apartado: Source is apartados record.
+ * 2. Contrato: Source is operation_tracking (current_stage, contract_completed_at). Fallback: contracts.contract_status.
+ * 3. Pago: Source is EXCLUSIVELY operation_tracking.payment_status.
+ * 4. Autorización: Source is EXCLUSIVELY operation_tracking.authorization_status & authorization_completed_at.
+ * 5. Transferencia: Source is EXCLUSIVELY operation_tracking.transfer_status & transfer_completed_at.
+ * 6. Entrega: Source is EXCLUSIVELY operation_tracking.delivery_status & delivery_completed_at.
+ * 7. Active stage: operation_tracking.current_stage.
  */
 export const resolveOperationTimeline = (item, tracking = null) => {
   if (!item) return null;
@@ -91,8 +90,8 @@ export const resolveOperationTimeline = (item, tracking = null) => {
   // Real NOD taken from apartados.nod or operation_tracking.nod (fallback formatted cleanly if missing)
   const nod =
     item.nod ||
-    item.folio ||
     trackingObj?.nod ||
+    item.folio ||
     (item.id ? `NOD-${String(item.id).replace(/\D/g, '').slice(0, 6).padStart(6, '0')}` : 'NOD-000100');
 
   const rawCertStatus = String(
@@ -107,39 +106,107 @@ export const resolveOperationTimeline = (item, tracking = null) => {
   const rawAppStatus = String(item.certification_appointment_status || '').toUpperCase();
   const rawItemStatus = String(item.status || '').toUpperCase();
 
-  // Extract from operation_tracking (source of truth)
+  // Operation tracking fields (source of truth)
   const opCurrentStage = String(trackingObj?.current_stage || '').toUpperCase().trim();
-  const opContractCompletedAt = trackingObj?.contract_completed_at || item.contract_completed_at || null;
-  const opPaymentStatus = String(trackingObj?.payment_status || item.payment_status || '').toUpperCase().trim();
-  const opAuthStatus = String(trackingObj?.authorization_status || item.authorization_status || item.auth_status || '').toUpperCase().trim();
-  const opAuthCompletedAt = trackingObj?.authorization_completed_at || item.authorization_completed_at || item.authorized_at || null;
-  const opTransferStatus = String(trackingObj?.transfer_status || item.transfer_status || '').toUpperCase().trim();
-  const opTransferCompletedAt = trackingObj?.transfer_completed_at || item.transfer_completed_at || item.transferred_at || null;
-  const opDeliveryStatus = String(trackingObj?.delivery_status || item.delivery_status || '').toUpperCase().trim();
-  const opDeliveryCompletedAt = trackingObj?.delivery_completed_at || trackingObj?.completed_at || item.delivery_completed_at || item.delivered_at || null;
+  const opContractCompletedAt = trackingObj?.contract_completed_at || null;
+  const opPaymentStatus = String(trackingObj?.payment_status || '').toUpperCase().trim();
+  const opAuthStatus = String(trackingObj?.authorization_status || '').toUpperCase().trim();
+  const opAuthCompletedAt = trackingObj?.authorization_completed_at || null;
+  const opTransferStatus = String(trackingObj?.transfer_status || '').toUpperCase().trim();
+  const opTransferCompletedAt = trackingObj?.transfer_completed_at || null;
+  const opDeliveryStatus = String(trackingObj?.delivery_status || '').toUpperCase().trim();
+  const opDeliveryCompletedAt = trackingObj?.delivery_completed_at || trackingObj?.completed_at || null;
 
-  // Legacy fallback statuses
-  const rawContractStatus = String(item.contract_status || '').toUpperCase();
-  const rawPaymentStatus = String(item.payment_status || '').toUpperCase();
-  const rawAuthStatus = String(item.authorization_status || item.auth_status || '').toUpperCase();
-  const rawTransferStatus = String(item.transfer_status || '').toUpperCase();
-  const rawDeliveryStatus = String(item.delivery_status || '').toUpperCase();
+  // Fallback for Contrato: ONLY contracts.contract_status
+  const fallbackContractStatus = String(
+    item.contracts?.contract_status ||
+    item.contract?.contract_status ||
+    item.contract_status ||
+    ''
+  ).toUpperCase().trim();
 
-  // 1. Stage: Apartado
-  // The apartado record exists in database -> completed
+  // 1. Stage: Apartado (derived strictly from apartados table existence)
   const isApartadoCompleted = true;
 
-  let isContractCompleted = false;
-  let isContractInProgress = false;
-  let isPagoCompleted = false;
-  let isPagoInProgress = false;
-  let isAuthCompleted = false;
-  let isAuthInProgress = false;
-  let isTransferCompleted = false;
-  let isTransferInProgress = false;
-  let isDeliveryCompleted = false;
-  let isDeliveryInProgress = false;
+  // 6. Stage: Entrega (source: operation_tracking)
+  const isDeliveryCompleted =
+    !isRejected &&
+    (['COMPLETADO', 'ENTREGADO', 'DELIVERED', 'COMPLETED'].includes(opDeliveryStatus) ||
+      Boolean(opDeliveryCompletedAt) ||
+      ['COMPLETADO', 'FINALIZADO'].includes(opCurrentStage));
 
+  const isDeliveryInProgress =
+    !isRejected &&
+    !isDeliveryCompleted &&
+    (opCurrentStage === 'ENTREGA' || ['EN_PROCESO'].includes(opDeliveryStatus));
+
+  // 5. Stage: Transferencia (source: operation_tracking)
+  const isTransferCompleted =
+    !isRejected &&
+    (['COMPLETADO', 'TRANSFERIDO', 'COMPLETED'].includes(opTransferStatus) ||
+      Boolean(opTransferCompletedAt) ||
+      isDeliveryCompleted ||
+      ['COMPLETADO', 'FINALIZADO'].includes(opCurrentStage));
+
+  const isTransferInProgress =
+    !isRejected &&
+    !isTransferCompleted &&
+    (opCurrentStage === 'TRANSFERENCIA' || ['EN_PROCESO'].includes(opTransferStatus));
+
+  // 4. Stage: Autorización (source: operation_tracking)
+  const isAuthCompleted =
+    !isRejected &&
+    (['COMPLETADO', 'AUTORIZADO', 'APPROVED', 'COMPLETED'].includes(opAuthStatus) ||
+      Boolean(opAuthCompletedAt) ||
+      isTransferCompleted ||
+      isDeliveryCompleted ||
+      ['COMPLETADO', 'FINALIZADO'].includes(opCurrentStage));
+
+  const isAuthInProgress =
+    !isRejected &&
+    !isAuthCompleted &&
+    (opCurrentStage === 'AUTORIZACION' ||
+      opCurrentStage === 'AUTORIZACIÓN' ||
+      ['EN_PROCESO', 'EN_REVISION'].includes(opAuthStatus));
+
+  // 3. Stage: Pago (source: EXCLUSIVELY operation_tracking.payment_status)
+  // CRITICAL: apartados.payment_status and apartados.paid_at correspond ONLY to initial apartado and MUST NOT mark Pago as completed
+  const isPagoCompleted =
+    !isRejected &&
+    (['COMPLETADO', 'PAGADO', 'EN_CUSTODIA', 'PAID', 'COMPLETED'].includes(opPaymentStatus) ||
+      isAuthCompleted ||
+      isTransferCompleted ||
+      isDeliveryCompleted ||
+      ['COMPLETADO', 'FINALIZADO'].includes(opCurrentStage));
+
+  const isPagoInProgress =
+    !isRejected &&
+    !isPagoCompleted &&
+    (opCurrentStage === 'PAGO' || ['EN_PROCESO', 'PENDIENTE_PAGO'].includes(opPaymentStatus));
+
+  // 2. Stage: Contrato (source: operation_tracking, fallback: contracts.contract_status)
+  const hasOperationTrackingContractInfo =
+    Boolean(opContractCompletedAt) || Boolean(opCurrentStage);
+
+  const isContractCompleted =
+    !isRejected &&
+    (Boolean(opContractCompletedAt) ||
+      ['PAGO', 'AUTORIZACION', 'AUTORIZACIÓN', 'TRANSFERENCIA', 'ENTREGA', 'COMPLETADO', 'FINALIZADO'].includes(opCurrentStage) ||
+      isPagoCompleted ||
+      isAuthCompleted ||
+      isTransferCompleted ||
+      isDeliveryCompleted ||
+      (!hasOperationTrackingContractInfo &&
+        ['COMPLETADO', 'FIRMADO', 'SIGNED'].includes(fallbackContractStatus)));
+
+  const isContractInProgress =
+    !isRejected &&
+    !isContractCompleted &&
+    (opCurrentStage === 'CONTRATO' ||
+      (!hasOperationTrackingContractInfo &&
+        ['EN_PROCESO', 'GENERADO', 'PENDIENTE_FIRMA'].includes(fallbackContractStatus)));
+
+  // Current stage and badge state determined by operation_tracking.current_stage
   let activeStageKey = 'apartado';
   let badgeLabel = 'Apartado';
   let badgeColor = 'amber';
@@ -148,235 +215,36 @@ export const resolveOperationTimeline = (item, tracking = null) => {
     activeStageKey = 'apartado';
     badgeLabel = 'Motocicleta Rechazada';
     badgeColor = 'red';
-  } else if (trackingObj) {
-    // Stage completion evaluation with operation_tracking as truth:
-    // Entrega → delivery_status / delivery_completed_at
-    isDeliveryCompleted =
-      ['COMPLETADO', 'ENTREGADO', 'DELIVERED', 'COMPLETED'].includes(opDeliveryStatus) ||
-      Boolean(opDeliveryCompletedAt) ||
-      ['COMPLETADO', 'FINALIZADO', 'ENTREGADO'].includes(opCurrentStage);
-
-    // Transferencia → transfer_status / transfer_completed_at
-    isTransferCompleted =
-      isDeliveryCompleted ||
-      ['COMPLETADO', 'TRANSFERIDO', 'COMPLETED'].includes(opTransferStatus) ||
-      Boolean(opTransferCompletedAt);
-
-    // Autorización → authorization_status / authorization_completed_at
-    isAuthCompleted =
-      isTransferCompleted ||
-      isDeliveryCompleted ||
-      ['COMPLETADO', 'AUTORIZADO', 'APPROVED', 'COMPLETED'].includes(opAuthStatus) ||
-      Boolean(opAuthCompletedAt);
-
-    // Pago → payment_status
-    // CRITICAL: apartado_payment_completed_at corresponds ONLY to initial apartado payment and MUST NOT mark Pago as completed!
-    isPagoCompleted =
-      isAuthCompleted ||
-      isTransferCompleted ||
-      isDeliveryCompleted ||
-      ['COMPLETADO', 'PAGADO', 'EN_CUSTODIA', 'PAID', 'COMPLETED'].includes(opPaymentStatus);
-
-    // Contrato → contract_completed_at
-    isContractCompleted =
-      isPagoCompleted ||
-      isAuthCompleted ||
-      isTransferCompleted ||
-      isDeliveryCompleted ||
-      Boolean(opContractCompletedAt);
-
-    // Stage progression driven by current_stage:
-    if (['COMPLETADO', 'FINALIZADO'].includes(opCurrentStage)) {
-      isContractCompleted = true;
-      isPagoCompleted = true;
-      isAuthCompleted = true;
-      isTransferCompleted = true;
-      isDeliveryCompleted = true;
-      activeStageKey = 'entrega';
-      badgeLabel = 'Entregada';
-      badgeColor = 'emerald';
-    } else if (opCurrentStage === 'ENTREGA') {
-      isContractCompleted = true;
-      isPagoCompleted = true;
-      isAuthCompleted = true;
-      isTransferCompleted = true;
-      if (!isDeliveryCompleted) isDeliveryInProgress = true;
-      activeStageKey = 'entrega';
-      badgeLabel = isDeliveryCompleted ? 'Entregada' : 'Entrega';
-      badgeColor = isDeliveryCompleted ? 'emerald' : 'blue';
-    } else if (opCurrentStage === 'TRANSFERENCIA') {
-      isContractCompleted = true;
-      isPagoCompleted = true;
-      isAuthCompleted = true;
-      if (!isTransferCompleted) isTransferInProgress = true;
-      isDeliveryCompleted = false;
-      isDeliveryInProgress = false;
-      activeStageKey = 'transferencia';
-      badgeLabel = 'Transferencia';
-      badgeColor = 'blue';
-    } else if (opCurrentStage === 'AUTORIZACION' || opCurrentStage === 'AUTORIZACIÓN') {
-      isContractCompleted = true;
-      isPagoCompleted = true;
-      if (!isAuthCompleted) isAuthInProgress = true;
-      isTransferCompleted = false;
-      isTransferInProgress = false;
-      isDeliveryCompleted = false;
-      isDeliveryInProgress = false;
-      activeStageKey = 'autorizacion';
-      badgeLabel = 'Autorización';
-      badgeColor = 'blue';
-    } else if (opCurrentStage === 'PAGO') {
-      isContractCompleted = true;
-      if (!isPagoCompleted) isPagoInProgress = true;
-      isAuthCompleted = false;
-      isAuthInProgress = false;
-      isTransferCompleted = false;
-      isTransferInProgress = false;
-      isDeliveryCompleted = false;
-      isDeliveryInProgress = false;
-      activeStageKey = 'pago';
-      badgeLabel = 'Pago';
-      badgeColor = 'blue';
-    } else if (opCurrentStage === 'CONTRATO') {
-      isContractCompleted = false;
-      isContractInProgress = true;
-      isPagoCompleted = false;
-      isPagoInProgress = false;
-      isAuthCompleted = false;
-      isAuthInProgress = false;
-      isTransferCompleted = false;
-      isTransferInProgress = false;
-      isDeliveryCompleted = false;
-      isDeliveryInProgress = false;
-      activeStageKey = 'contrato';
-      badgeLabel = 'Contrato';
-      badgeColor = 'blue';
-    } else if (opCurrentStage === 'APARTADO') {
-      isContractCompleted = false;
-      isContractInProgress = false;
-      isPagoCompleted = false;
-      isPagoInProgress = false;
-      isAuthCompleted = false;
-      isAuthInProgress = false;
-      isTransferCompleted = false;
-      isTransferInProgress = false;
-      isDeliveryCompleted = false;
-      isDeliveryInProgress = false;
-      activeStageKey = 'apartado';
-      badgeLabel = 'Apartado';
-      badgeColor = 'amber';
-    } else {
-      // If current_stage is not provided, evaluate active step in sequential order
-      if (isDeliveryCompleted) {
-        activeStageKey = 'entrega';
-        badgeLabel = 'Entregada';
-        badgeColor = 'emerald';
-      } else if (isTransferCompleted) {
-        isDeliveryInProgress = true;
-        activeStageKey = 'entrega';
-        badgeLabel = 'Entrega';
-        badgeColor = 'blue';
-      } else if (isAuthCompleted) {
-        isTransferInProgress = true;
-        activeStageKey = 'transferencia';
-        badgeLabel = 'Transferencia';
-        badgeColor = 'blue';
-      } else if (isPagoCompleted) {
-        isAuthInProgress = true;
-        activeStageKey = 'autorizacion';
-        badgeLabel = 'Autorización';
-        badgeColor = 'blue';
-      } else if (isContractCompleted) {
-        isPagoInProgress = true;
-        activeStageKey = 'pago';
-        badgeLabel = 'Pago';
-        badgeColor = 'blue';
-      } else {
-        isContractInProgress = true;
-        activeStageKey = 'contrato';
-        badgeLabel = 'Contrato';
-        badgeColor = 'blue';
-      }
-    }
+  } else if (['COMPLETADO', 'FINALIZADO'].includes(opCurrentStage)) {
+    activeStageKey = 'entrega';
+    badgeLabel = 'Entregada';
+    badgeColor = 'emerald';
+  } else if (opCurrentStage === 'ENTREGA') {
+    activeStageKey = 'entrega';
+    badgeLabel = isDeliveryCompleted ? 'Entregada' : 'Entrega';
+    badgeColor = isDeliveryCompleted ? 'emerald' : 'blue';
+  } else if (opCurrentStage === 'TRANSFERENCIA') {
+    activeStageKey = 'transferencia';
+    badgeLabel = 'Transferencia';
+    badgeColor = 'blue';
+  } else if (opCurrentStage === 'AUTORIZACION' || opCurrentStage === 'AUTORIZACIÓN') {
+    activeStageKey = 'autorizacion';
+    badgeLabel = 'Autorización';
+    badgeColor = 'blue';
+  } else if (opCurrentStage === 'PAGO') {
+    activeStageKey = 'pago';
+    badgeLabel = 'Pago';
+    badgeColor = 'blue';
+  } else if (opCurrentStage === 'CONTRATO') {
+    activeStageKey = 'contrato';
+    badgeLabel = 'Contrato';
+    badgeColor = 'blue';
+  } else if (opCurrentStage === 'APARTADO') {
+    activeStageKey = 'apartado';
+    badgeLabel = 'Apartado';
+    badgeColor = 'amber';
   } else {
-    // Fallback when tracking data is not present
-    isDeliveryCompleted =
-      rawDeliveryStatus === 'COMPLETADO' ||
-      rawDeliveryStatus === 'ENTREGADO' ||
-      rawDeliveryStatus === 'DELIVERED' ||
-      rawItemStatus === 'ENTREGADO' ||
-      Boolean(item.delivered_at) ||
-      (rawItemStatus === 'COMPLETADO' && (rawTransferStatus === 'COMPLETADO' || Boolean(item.transferred_at)));
-
-    isTransferCompleted =
-      isDeliveryCompleted ||
-      rawTransferStatus === 'COMPLETADO' ||
-      rawTransferStatus === 'TRANSFERIDO' ||
-      Boolean(item.transferred_at) ||
-      Boolean(item.transfer_completed_at);
-
-    isAuthCompleted =
-      isTransferCompleted ||
-      isDeliveryCompleted ||
-      rawAuthStatus === 'COMPLETADO' ||
-      rawAuthStatus === 'AUTORIZADO' ||
-      rawAuthStatus === 'APPROVED' ||
-      Boolean(item.authorized_at) ||
-      Boolean(item.authorization_completed_at);
-
-    isPagoCompleted =
-      isAuthCompleted ||
-      isTransferCompleted ||
-      isDeliveryCompleted ||
-      rawPaymentStatus === 'COMPLETADO' ||
-      rawPaymentStatus === 'PAGADO' ||
-      rawPaymentStatus === 'EN_CUSTODIA' ||
-      Boolean(item.vehicle_paid_at) ||
-      Boolean(item.full_payment_at) ||
-      Boolean(item.paid_full_at) ||
-      Boolean(item.custody_paid_at);
-
-    isContractCompleted =
-      isPagoCompleted ||
-      isAuthCompleted ||
-      isTransferCompleted ||
-      isDeliveryCompleted ||
-      rawContractStatus === 'COMPLETADO' ||
-      rawContractStatus === 'FIRMADO' ||
-      rawContractStatus === 'SIGNED' ||
-      Boolean(item.contract_signed_at) ||
-      Boolean(item.contract_completed_at);
-
-    isContractInProgress =
-      !isContractCompleted &&
-      (rawContractStatus === 'EN_PROCESO' ||
-        rawContractStatus === 'GENERADO' ||
-        rawContractStatus === 'PENDIENTE_FIRMA' ||
-        rawCertStatus === 'CERTIFICADA' ||
-        rawCertStatus === 'APROBADA');
-
-    isPagoInProgress =
-      !isPagoCompleted &&
-      (rawPaymentStatus === 'EN_PROCESO' ||
-        rawPaymentStatus === 'PENDIENTE_PAGO' ||
-        (isContractCompleted && !isPagoCompleted));
-
-    isAuthInProgress =
-      !isAuthCompleted &&
-      (rawAuthStatus === 'EN_PROCESO' ||
-        rawAuthStatus === 'EN_REVISION' ||
-        (isPagoCompleted && !isAuthCompleted));
-
-    isTransferInProgress =
-      !isTransferCompleted &&
-      (rawTransferStatus === 'EN_PROCESO' ||
-        (isAuthCompleted && !isTransferCompleted));
-
-    isDeliveryInProgress =
-      !isDeliveryCompleted &&
-      (rawDeliveryStatus === 'EN_PROCESO' ||
-        (isTransferCompleted && !isDeliveryCompleted));
-
+    // If current_stage is not provided in operation_tracking, evaluate active step from stage states
     if (isDeliveryCompleted) {
       activeStageKey = 'entrega';
       badgeLabel = 'Entregada';
@@ -385,19 +253,19 @@ export const resolveOperationTimeline = (item, tracking = null) => {
       activeStageKey = 'entrega';
       badgeLabel = 'Entrega';
       badgeColor = 'blue';
-    } else if (isTransferInProgress || (isAuthCompleted && !isTransferCompleted)) {
+    } else if (isTransferCompleted || isTransferInProgress) {
       activeStageKey = 'transferencia';
       badgeLabel = 'Transferencia';
       badgeColor = 'blue';
-    } else if (isAuthInProgress || (isPagoCompleted && !isAuthCompleted)) {
+    } else if (isAuthCompleted || isAuthInProgress) {
       activeStageKey = 'autorizacion';
       badgeLabel = 'Autorización';
       badgeColor = 'blue';
-    } else if (isPagoInProgress || (isContractCompleted && !isPagoCompleted)) {
+    } else if (isPagoCompleted || isPagoInProgress) {
       activeStageKey = 'pago';
       badgeLabel = 'Pago';
       badgeColor = 'blue';
-    } else if (isContractInProgress) {
+    } else if (isContractCompleted || isContractInProgress) {
       activeStageKey = 'contrato';
       badgeLabel = 'Contrato';
       badgeColor = 'blue';
