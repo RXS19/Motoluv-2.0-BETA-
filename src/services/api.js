@@ -1703,4 +1703,47 @@ export const hubspotApi = {
   syncStatusCard: (cardData) => api.post('/webhooks/hubspot/status-card', cardData).then((r) => r.data),
 };
 
+export const operationTrackingApi = {
+  getAll: async () => {
+    if (isSupabaseConfigured && supabase) {
+      try {
+        const { data, error } = await supabase.from('operation_tracking').select('*');
+        if (!error && Array.isArray(data) && data.length > 0) {
+          return data;
+        }
+      } catch (err) {
+        console.warn('Supabase client operation_tracking query error:', err);
+      }
+    }
+    try {
+      const res = await api.get('/operation-tracking');
+      if (Array.isArray(res.data)) {
+        return res.data;
+      }
+    } catch (e) {
+      console.warn('API /operation-tracking fallback error:', e);
+    }
+    return [];
+  },
+
+  getByNod: async (nod) => {
+    if (!nod) return null;
+    if (isSupabaseConfigured && supabase) {
+      try {
+        const { data, error } = await supabase.from('operation_tracking').select('*').eq('nod', nod).maybeSingle();
+        if (!error && data) return data;
+      } catch (err) {
+        console.warn('Supabase client operation_tracking by nod error:', err);
+      }
+    }
+    try {
+      const res = await api.get(`/operation-tracking/${encodeURIComponent(nod)}`);
+      if (res.data) return res.data;
+    } catch (e) {
+      console.warn('API /operation-tracking/:nod fallback error:', e);
+    }
+    return null;
+  },
+};
+
 export default api;
