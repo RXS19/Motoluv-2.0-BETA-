@@ -2,13 +2,19 @@ import React, { useEffect, useState } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { ArrowLeft, MapPin, Calendar, Wrench, Palette, Gauge, Award, Eye, Star, Shield, ChevronRight, ChevronLeft, MessageCircle, User, Activity, Lock, CheckCircle2, BookmarkCheck, CreditCard, X, AlertCircle, FileText, Download, Printer, ShieldCheck, CheckCheck, Heart, Clock } from 'lucide-react';
 import MotoCard from '../components/MotoCard';
-import { motoApi, offerApi, apartadoApi } from '../services/api';
+import { motoApi, offerApi, apartadoApi, certificationApi } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import { useFavorites } from '../context/FavoritesContext';
 import { toast } from '../hooks/use-toast';
 import { getStatusStyle } from '../utils/status';
 import { handleImageError, resolveSafeImageUrl, FALLBACK_MOTO_IMAGE } from '../utils/imageFallback';
 import { getCachedMotoViews, setCachedMotoViews } from '../utils/motoNavigation';
+import {
+  MECHANICAL_MODULES,
+  getModuleStatusConfig,
+  INSPECTION_GROUPS,
+  getPointStatusConfig,
+} from '../constants/inspectionProtocol';
 
 const PKG_PRICES = { basico: 0, plus: 1800, total: 3500 };
 
@@ -37,8 +43,10 @@ const MotoDetailPage = () => {
 
   const fav = isFavorite(moto?.id);
 
-  // Certificate Modal state
+  // Certificate Modal and data state from public.moto_certifications
   const [showCertModal, setShowCertModal] = useState(false);
+  const [motoCertification, setMotoCertification] = useState(null);
+  const [certLoading, setCertLoading] = useState(false);
 
   const images = moto 
     ? (Array.isArray(moto.images) && moto.images.length > 0 
@@ -92,13 +100,34 @@ const MotoDetailPage = () => {
 
   useEffect(() => {
     if (user && moto && moto.id) {
-      apartadoApi.getByMotoForBuyer(moto.id).then((apt) => {
+      apartadoApi.getByMoto(moto.id).then((apt) => {
         if (apt) {
           setApartado(apt);
         }
       }).catch(() => {});
     }
   }, [user, moto]);
+
+  useEffect(() => {
+    if (!user || !moto?.id) {
+      setMotoCertification(null);
+      return;
+    }
+
+    setCertLoading(true);
+    const targetNod = apartado?.nod || null;
+    certificationApi.getByNodOrMoto({ nod: targetNod, motoId: moto.id })
+      .then((cert) => {
+        setMotoCertification(cert || null);
+      })
+      .catch((err) => {
+        console.warn('Error fetching moto certification:', err);
+        setMotoCertification(null);
+      })
+      .finally(() => {
+        setCertLoading(false);
+      });
+  }, [user, moto?.id, apartado?.nod]);
 
   if (loading) {
     return <div className="max-w-3xl mx-auto px-5 py-32 text-center text-zinc-500">Cargando motocicleta...</div>;
@@ -202,28 +231,60 @@ const MotoDetailPage = () => {
   };
 
   const isOwner = Boolean(user?.id && moto?.owner_id && String(user.id) === String(moto.owner_id));
+  const isBuyer = Boolean(user?.id && apartado?.buyer_id && String(user.id) === String(apartado.buyer_id));
+  const isAuthorizedForCert = Boolean(user && (isBuyer || isOwner));
+
+  const handleOpenCertModal = () => {
+    if (!user) {
+      toast({
+        title: 'Acceso restringido',
+        description: 'Debes iniciar sesión para consultar el peritaje técnico oficial.',
+      });
+      navigate('/iniciar-sesion');
+      return;
+    }
+    if (!isAuthorizedForCert) {
+      toast({
+        title: 'Certificado privado',
+        description: 'El certificado completo únicamente puede ser consultado por las partes involucradas en la operación (comprador y vendedor vinculados al NOD).',
+      });
+      return;
+    }
+    if (!motoCertification) {
+      toast({
+        title: 'Certificación en proceso',
+        description: 'Aún no se cuenta con un peritaje técnico oficial registrado en el sistema para esta operación.',
+      });
+      return;
+    }
+    setShowCertModal(true);
+  };
 
   // Determine certification status for display:
-  // For Comprador / Non-owner: ONLY 'PENDIENTE', 'CERTIFICADA' or 'RECHAZADA'
-  const rawCertStatus = String(apartado?.certification_status || moto?.certification_status || '').toUpperCase();
-  const buyerCertStatus = (rawCertStatus === 'APROBADA' || rawCertStatus === 'CERTIFICADA')
+  // Source of truth: public.moto_certifications
+  const rawCertStatus = String(motoCertification?.global_status || apartado?.certification_status || moto?.certification_status || '').toUpperCase();
+  const buyerCertStatus = (rawCertStatus === 'APROBADA' || rawCertStatus === 'CERTIFICADA' || rawCertStatus === 'ACEPTABLE')
     ? 'CERTIFICADA'
-    : (rawCertStatus === 'RECHAZADA' ? 'RECHAZADA' : 'PENDIENTE');
+    : (rawCertStatus === 'RECHAZADA' || rawCertStatus === 'RECHAZO' ? 'RECHAZADA' : (rawCertStatus === 'REGULAR' ? 'REGULAR' : 'PENDIENTE'));
 
-  const certStatus = isOwner
-    ? (apartado?.certification_status || moto?.certification_status || 'PENDIENTE')
-    : buyerCertStatus;
+  const certStatus = motoCertification?.global_status
+    ? motoCertification.global_status
+    : (isOwner ? (apartado?.certification_status || moto?.certification_status || 'PENDIENTE') : buyerCertStatus);
 
-  const certFolio = apartado?.id 
-    ? `FOL-${String(apartado.id).slice(0, 8).toUpperCase()}` 
-    : (moto?.id ? `FOL-${String(moto.id).slice(0, 8).toUpperCase()}` : 'FOL-PENDIENTE');
-  const certDate = apartado?.certification_appointment_at 
-    ? new Date(apartado.certification_appointment_at).toLocaleDateString('es-MX', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })
-    : (moto?.certification_appointment_at 
-        ? new Date(moto.certification_appointment_at).toLocaleDateString('es-MX', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })
-        : 'Por programar');
-  const certInspector = apartado?.inspector_name || moto?.inspector_name || 'Perito Asignado Motoluv';
-  const certNotes = apartado?.inspection_notes || moto?.inspection_notes || moto?.certification_notes || 'Diagnóstico e inspección técnica conforme al protocolo oficial de Motoluv.';
+  const certFolio = motoCertification?.folio || (apartado?.nod 
+    ? `CERT-${apartado.nod}` 
+    : (apartado?.id ? `FOL-${String(apartado.id).slice(0, 8).toUpperCase()}` : (moto?.id ? `FOL-${String(moto.id).slice(0, 8).toUpperCase()}` : 'FOL-PENDIENTE')));
+
+  const certDate = motoCertification?.inspection_date
+    ? new Date(motoCertification.inspection_date).toLocaleDateString('es-MX', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+    : (apartado?.certification_appointment_at 
+        ? new Date(apartado.certification_appointment_at).toLocaleDateString('es-MX', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+        : (moto?.certification_appointment_at 
+            ? new Date(moto.certification_appointment_at).toLocaleDateString('es-MX', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+            : 'Por programar'));
+
+  const certInspector = motoCertification?.inspector_name || apartado?.inspector_name || moto?.inspector_name || 'Perito Asignado Motoluv';
+  const certNotes = motoCertification?.inspection_notes || apartado?.inspection_notes || moto?.inspection_notes || moto?.certification_notes || 'Diagnóstico e inspección técnica conforme al protocolo oficial de Motoluv.';
 
   const rawScoreDetails = (moto && (moto.score_details || moto.scoreDetails)) || null;
   const scoreDetails = (rawScoreDetails && typeof rawScoreDetails === 'object' && Object.keys(rawScoreDetails).length > 0)
@@ -358,7 +419,7 @@ const MotoDetailPage = () => {
 
               {user && (
                 <button
-                  onClick={() => setShowCertModal(true)}
+                  onClick={handleOpenCertModal}
                   className="inline-flex items-center gap-2 px-4 py-2.5 bg-[#1a1a1d] hover:bg-red-brand hover:text-white border border-white/10 text-zinc-300 text-xs font-bold uppercase tracking-wider rounded-sm transition-all shadow-sm"
                 >
                   <FileText size={14} className="text-red-brand group-hover:text-white" />
@@ -431,8 +492,8 @@ const MotoDetailPage = () => {
                   )}
                 </div>
 
-                {/* Grid of Mechanical Systems */}
-                {scoreDetails ? (
+                {/* Grid of Mechanical Systems - 6 Módulos Oficiales */}
+                {motoCertification ? (
                   <div>
                     <div className="text-xs text-zinc-400 uppercase tracking-widest font-bold mb-4 flex items-center justify-between">
                       <span>Evaluación por Sistemas Mecánicos y Estructurales</span>
@@ -440,34 +501,28 @@ const MotoDetailPage = () => {
                     </div>
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-4">
-                      {Object.entries(scoreDetails).map(([k, v]) => {
-                        const numVal = Number(v) || 0;
-                        const isHigh = numVal >= 90;
-                        const isGood = numVal >= 80;
+                      {MECHANICAL_MODULES.map((mod) => {
+                        const rawStatus = motoCertification[mod.key];
+                        const meta = getModuleStatusConfig(rawStatus);
                         return (
-                          <div key={k} className="p-3 bg-[#0a0a0b]/60 border border-white/5 rounded-sm hover:border-white/10 transition-colors">
-                            <div className="flex items-center justify-between text-xs mb-2">
+                          <div key={mod.key} className="p-3 bg-[#0a0a0b]/60 border border-white/5 rounded-sm hover:border-white/10 transition-colors">
+                            <div className="flex items-center justify-between text-xs">
                               <span className="text-zinc-200 font-medium flex items-center gap-2">
-                                <span className={`w-2 h-2 rounded-full ${isHigh ? 'bg-emerald-400' : isGood ? 'bg-amber-400' : 'bg-red-400'}`} />
-                                {k}
+                                <span className={`w-2 h-2 rounded-full ${meta.dotClass}`} />
+                                {mod.name}
                               </span>
-                              <span className="text-white font-bold font-mono">{numVal}%</span>
-                            </div>
-                            <div className="h-2 bg-[#1a1a1c] rounded-full overflow-hidden">
-                              <div
-                                className={`h-full rounded-full transition-all duration-500 ${
-                                  isHigh
-                                    ? 'bg-gradient-to-r from-emerald-500 to-emerald-400'
-                                    : isGood
-                                    ? 'bg-gradient-to-r from-red-brand to-red-500'
-                                    : 'bg-gradient-to-r from-amber-500 to-amber-400'
-                                }`}
-                                style={{ width: `${numVal}%` }}
-                              />
+                              <span className={`font-bold text-[10px] uppercase tracking-wider px-2.5 py-0.5 rounded border ${meta.badgeClass}`}>
+                                {meta.label}
+                              </span>
                             </div>
                           </div>
                         );
                       })}
+                    </div>
+
+                    <div className="mt-3 text-[11px] text-zinc-500 flex items-center gap-2">
+                      <CheckCircle2 size={13} className="text-zinc-500" />
+                      <span>6 áreas mecánicas evaluadas · 20 puntos inspeccionados</span>
                     </div>
                   </div>
                 ) : (
@@ -494,7 +549,7 @@ const MotoDetailPage = () => {
                     <span>Inspección integral avalada con sello digital de garantía Motoluv.</span>
                   </div>
                   <button
-                    onClick={() => setShowCertModal(true)}
+                    onClick={handleOpenCertModal}
                     className="text-red-brand hover:underline font-bold text-xs flex items-center gap-1"
                   >
                     Ver certificado completo <ChevronRight size={12} />
@@ -938,9 +993,9 @@ const MotoDetailPage = () => {
       )}
 
       {/* MODAL DE CERTIFICADO OFICIAL MOTOLUV */}
-      {showCertModal && (
+      {showCertModal && isAuthorizedForCert && motoCertification && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 backdrop-blur-md p-4 overflow-y-auto">
-          <div className="bg-[#0e0e10] border border-white/15 rounded-md max-w-3xl w-full p-6 sm:p-8 space-y-6 relative shadow-2xl my-8 text-left">
+          <div className="bg-[#0e0e10] border border-white/15 rounded-md max-w-3xl w-full p-6 sm:p-8 space-y-6 relative shadow-2xl my-8 text-left max-h-[90vh] overflow-y-auto">
             <button
               onClick={() => setShowCertModal(false)}
               className="absolute top-5 right-5 text-zinc-400 hover:text-white transition-colors p-1"
@@ -965,8 +1020,11 @@ const MotoDetailPage = () => {
 
               <div className="text-center sm:text-right border-t sm:border-t-0 pt-3 sm:pt-0 border-white/5">
                 <div className="text-[10px] text-zinc-500 uppercase tracking-widest">Folio Oficial</div>
-                <div className="text-red-brand font-mono font-bold text-sm sm:text-base">{certFolio}</div>
+                <div className="text-red-brand font-mono font-bold text-sm sm:text-base">{motoCertification.folio || certFolio}</div>
                 <div className="text-[11px] text-zinc-400">Emisión: {certDate}</div>
+                {motoCertification.nod && (
+                  <div className="text-[10px] text-zinc-500 font-mono mt-0.5">Operación: {motoCertification.nod}</div>
+                )}
               </div>
             </div>
 
@@ -986,28 +1044,62 @@ const MotoDetailPage = () => {
               </div>
               <div>
                 <span className="text-zinc-500 text-[10px] uppercase block">Dictamen Final</span>
-                <span className="text-emerald-400 font-bold flex items-center gap-1">
-                  <CheckCircle2 size={13} /> {certStatus}
+                <span className={`font-bold flex items-center gap-1 ${
+                  motoCertification.global_status === 'RECHAZADA' || motoCertification.global_status === 'RECHAZO'
+                    ? 'text-red-400'
+                    : motoCertification.global_status === 'REGULAR'
+                    ? 'text-amber-400'
+                    : 'text-emerald-400'
+                }`}>
+                  <CheckCircle2 size={13} /> {motoCertification.global_status || certStatus}
                 </span>
               </div>
             </div>
 
-            {/* Detailed Inspection Matrix */}
-            <div className="space-y-3">
-              <h4 className="text-xs font-bold text-white uppercase tracking-wider flex items-center gap-2">
-                <Award size={14} className="text-red-brand" /> Resultados por Módulo de Inspección Certificada
-              </h4>
-              {scoreDetails ? (
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  {Object.entries(scoreDetails).map(([cat, val]) => (
-                    <div key={cat} className="flex items-center justify-between p-3 bg-[#141417] border border-white/5 rounded-sm text-xs">
-                      <span className="text-zinc-300 font-medium flex items-center gap-2">
-                        <CheckCircle2 size={13} className="text-emerald-400 flex-shrink-0" />
-                        {cat}
-                      </span>
-                      <span className="font-mono font-bold text-white bg-black/40 px-2 py-0.5 rounded border border-white/10">
-                        {val}%
-                      </span>
+            {/* Detailed Inspection Matrix - 20 Puntos */}
+            <div className="space-y-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
+                <h4 className="text-xs font-bold text-white uppercase tracking-wider flex items-center gap-2">
+                  <Award size={14} className="text-red-brand" /> Resultados por Módulo de Inspección Certificada
+                </h4>
+                <span className="text-[10px] text-zinc-400">20 puntos de inspección técnica oficial</span>
+              </div>
+
+              {motoCertification.inspection_items && typeof motoCertification.inspection_items === 'object' && Object.keys(motoCertification.inspection_items).length > 0 ? (
+                <div className="space-y-4">
+                  {INSPECTION_GROUPS.map((group) => (
+                    <div key={group.group} className="space-y-2">
+                      <div className="flex items-center justify-between text-[11px] font-bold uppercase tracking-wider text-zinc-400 border-b border-white/5 pb-1">
+                        <span className="text-zinc-300">{group.group}</span>
+                        <span className="text-zinc-500 text-[10px] font-normal">{group.range}</span>
+                      </div>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                        {group.points.map((pt) => {
+                          const rawVal = motoCertification.inspection_items[String(pt.number)] || motoCertification.inspection_items[pt.number];
+                          const meta = getPointStatusConfig(rawVal);
+                          return (
+                            <div key={pt.number} className="p-2.5 bg-[#141417] border border-white/5 rounded-sm flex items-center justify-between gap-2 text-xs">
+                              <span className="text-zinc-300 font-medium flex items-center gap-2 truncate">
+                                {meta.statusType === 'ok' ? (
+                                  <CheckCircle2 size={13} className="text-emerald-400 flex-shrink-0" />
+                                ) : meta.statusType === 'obs' ? (
+                                  <AlertCircle size={13} className="text-amber-400 flex-shrink-0" />
+                                ) : meta.statusType === 'falla' ? (
+                                  <X size={13} className="text-red-400 flex-shrink-0" />
+                                ) : (
+                                  <Clock size={13} className="text-zinc-500 flex-shrink-0" />
+                                )}
+                                <span className="truncate" title={pt.label}>
+                                  <strong className="text-zinc-400 font-mono mr-1">{pt.number}.</strong>{pt.label}
+                                </span>
+                              </span>
+                              <span className={`font-mono font-bold text-[10px] px-2 py-0.5 rounded border flex-shrink-0 ${meta.badgeClass}`}>
+                                {meta.label}
+                              </span>
+                            </div>
+                          );
+                        })}
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -1025,7 +1117,7 @@ const MotoDetailPage = () => {
                 {certNotes}
               </p>
               <div className="pt-2 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-1 text-[10px] text-zinc-500 border-t border-white/5">
-                <span>{certInspector}</span>
+                <span>{motoCertification.inspector_name || certInspector}</span>
                 <span>Registro Oficial Motoluv MX • Firma Digital Verificada</span>
               </div>
             </div>
@@ -1038,7 +1130,7 @@ const MotoDetailPage = () => {
               </div>
               <button
                 onClick={() => setShowCertModal(false)}
-                className="px-6 py-2.5 bg-[#1a1a1d] hover:bg-white/10 border border-white/10 hover:border-white/20 text-zinc-200 hover:text-white text-xs font-bold uppercase tracking-wider rounded-sm transition-colors"
+                className="px-6 py-2.5 bg-[#1a1a1d] hover:bg-white/10 border border-white/10 hover:border-white/20 text-zinc-200 hover:text-white text-xs font-bold uppercase tracking-wider rounded-sm transition-colors cursor-pointer"
               >
                 Cerrar
               </button>

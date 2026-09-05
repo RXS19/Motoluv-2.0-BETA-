@@ -883,6 +883,62 @@ export const apartadoApi = {
     }
   },
 
+  getByMoto: async (motoId) => {
+    if (!motoId) return null;
+    if (isSupabaseConfigured && supabase) {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session?.user?.id) {
+          // 1. Check as buyer
+          const { data: buyerData, error: buyerErr } = await supabase
+            .from('apartados')
+            .select('*')
+            .eq('buyer_id', session.user.id)
+            .eq('moto_id', String(motoId))
+            .order('created_at', { ascending: false })
+            .limit(1);
+
+          if (!buyerErr && Array.isArray(buyerData) && buyerData.length > 0) {
+            const item = buyerData[0];
+            const mCert = await getMotoCertificationAndAppointment(motoId);
+            if (mCert?.isProgrammed || mCert?.isCertified) {
+              item.certification_appointment_at = mCert.certification_appointment_at;
+              item.certification_appointment_status = mCert.certification_appointment_status;
+              item.certification_workshop = mCert.certification_workshop;
+              item.certification_workshop_id = mCert.certification_workshop_id;
+              item.certification_status = mCert.certification_status;
+            }
+            return item;
+          }
+
+          // 2. Check as owner/seller
+          const { data: ownerData, error: ownerErr } = await supabase
+            .from('apartados')
+            .select('*')
+            .eq('moto_id', String(motoId))
+            .order('created_at', { ascending: false })
+            .limit(1);
+
+          if (!ownerErr && Array.isArray(ownerData) && ownerData.length > 0) {
+            const item = ownerData[0];
+            const mCert = await getMotoCertificationAndAppointment(motoId);
+            if (mCert?.isProgrammed || mCert?.isCertified) {
+              item.certification_appointment_at = mCert.certification_appointment_at;
+              item.certification_appointment_status = mCert.certification_appointment_status;
+              item.certification_workshop = mCert.certification_workshop;
+              item.certification_workshop_id = mCert.certification_workshop_id;
+              item.certification_status = mCert.certification_status;
+            }
+            return item;
+          }
+        }
+      } catch (err) {
+        console.warn('Error querying apartado by moto:', err);
+      }
+    }
+    return null;
+  },
+
   getByMotoForBuyer: async (motoId) => {
     if (!motoId) return null;
     if (isSupabaseConfigured && supabase) {
@@ -1179,6 +1235,64 @@ export const apartadoApi = {
         status: 'PROGRAMADA',
       })
       .then((r) => r.data);
+  },
+};
+
+export const certificationApi = {
+  getByNodOrMoto: async ({ nod, motoId }) => {
+    if (!nod && !motoId) return null;
+    if (isSupabaseConfigured && supabase) {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session?.user?.id) return null;
+
+        // 1. Priority 1: NOD + moto_id
+        if (nod && motoId) {
+          const { data, error } = await supabase
+            .from('moto_certifications')
+            .select('*')
+            .eq('nod', String(nod))
+            .eq('moto_id', String(motoId))
+            .order('created_at', { ascending: false })
+            .limit(1);
+
+          if (!error && Array.isArray(data) && data.length > 0) {
+            return data[0];
+          }
+        }
+
+        // 2. Priority 2: Query by NOD
+        if (nod) {
+          const { data, error } = await supabase
+            .from('moto_certifications')
+            .select('*')
+            .eq('nod', String(nod))
+            .order('created_at', { ascending: false })
+            .limit(1);
+
+          if (!error && Array.isArray(data) && data.length > 0) {
+            return data[0];
+          }
+        }
+
+        // 3. Priority 3: Query by moto_id
+        if (motoId) {
+          const { data, error } = await supabase
+            .from('moto_certifications')
+            .select('*')
+            .eq('moto_id', String(motoId))
+            .order('created_at', { ascending: false })
+            .limit(1);
+
+          if (!error && Array.isArray(data) && data.length > 0) {
+            return data[0];
+          }
+        }
+      } catch (err) {
+        console.warn('Error querying moto_certifications in Supabase:', err);
+      }
+    }
+    return null;
   },
 };
 
