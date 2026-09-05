@@ -437,44 +437,6 @@ api.get('/', (_req, res) => {
   res.json({ message: 'Motoluv API', auth: 'Supabase Auth', version: '1.0', motos_count: db.motos.size });
 });
 
-api.get('/operation-tracking', async (_req, res) => {
-  try {
-    if (supabaseServer) {
-      const { data, error } = await supabaseServer.from('operation_tracking').select('*');
-      if (!error && Array.isArray(data)) {
-        return res.json(data);
-      }
-      if (error) {
-        console.warn('Supabase operation_tracking query error:', error.message);
-      }
-    }
-    return res.json([]);
-  } catch (err: any) {
-    console.warn('Error fetching operation_tracking in server route:', err);
-    return res.json([]);
-  }
-});
-
-api.get('/operation-tracking/:nod', async (req, res) => {
-  try {
-    const { nod } = req.params;
-    if (supabaseServer) {
-      const { data, error } = await supabaseServer
-        .from('operation_tracking')
-        .select('*')
-        .eq('nod', nod)
-        .maybeSingle();
-      if (!error && data) {
-        return res.json(data);
-      }
-    }
-    return res.json(null);
-  } catch (err: any) {
-    console.warn('Error fetching single operation_tracking in server route:', err);
-    return res.json(null);
-  }
-});
-
 api.get('/auth/me', authenticateToken, (req, res) => {
   const user = (req as any).user;
   return res.json(user);
