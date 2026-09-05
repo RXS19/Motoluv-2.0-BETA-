@@ -2,10 +2,12 @@ import React, { useState, useEffect } from 'react';
 import { X, Star, ShieldCheck, Truck, ShoppingCart, ChevronRight, CheckCircle2, RotateCcw, Check } from 'lucide-react';
 import { useCart } from '../context/CartContext';
 import { handleImageError, resolveSafeImageUrl } from '../utils/imageFallback';
+import ImageLightboxModal from './ImageLightboxModal';
 
 const ProductDetailModal = () => {
   const { selectedProduct, setSelectedProduct, addToCart, setIsCartOpen } = useCart();
   const [selectedImage, setSelectedImage] = useState('');
+  const [isLightboxOpen, setIsLightboxOpen] = useState(false);
   const [selectedSize, setSelectedSize] = useState('');
   const [selectedColor, setSelectedColor] = useState('');
   const [quantity, setQuantity] = useState(1);
@@ -46,7 +48,8 @@ const ProductDetailModal = () => {
   };
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center p-3 sm:p-5 md:p-8 bg-black/80 backdrop-blur-md overflow-y-auto animate-in fade-in duration-200">
+    <>
+      <div className="fixed inset-0 z-[100] flex items-center justify-center p-3 sm:p-5 md:p-8 bg-black/80 backdrop-blur-md overflow-y-auto animate-in fade-in duration-200">
       <div 
         className="relative w-full max-w-4xl bg-[#111112] border border-white/10 rounded-xl shadow-2xl overflow-hidden my-auto max-h-[92vh] flex flex-col"
         onClick={(e) => e.stopPropagation()}
@@ -73,7 +76,10 @@ const ProductDetailModal = () => {
             {/* Left Column: Image Gallery */}
             <div className="space-y-4">
               {/* Main Image Frame */}
-              <div className="relative aspect-square w-full bg-zinc-900/80 rounded-lg overflow-hidden border border-white/5 group">
+              <div 
+                onClick={() => setIsLightboxOpen(true)}
+                className="relative aspect-square w-full bg-zinc-900/80 rounded-lg overflow-hidden border border-white/5 group cursor-pointer"
+              >
                 <img
                   src={resolveSafeImageUrl(selectedImage || selectedProduct.image, 'gear')}
                   alt={selectedProduct.name}
@@ -352,6 +358,18 @@ const ProductDetailModal = () => {
         </div>
       </div>
     </div>
+
+      {/* Visor Full Screen / Lightbox */}
+      <ImageLightboxModal
+        isOpen={isLightboxOpen}
+        onClose={() => setIsLightboxOpen(false)}
+        images={productImages}
+        currentIndex={Math.max(0, productImages.indexOf(selectedImage))}
+        onIndexChange={(idx) => setSelectedImage(productImages[idx])}
+        imageType="gear"
+        altTitle={selectedProduct.name}
+      />
+    </>
   );
 };
 

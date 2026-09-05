@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { ArrowLeft, MapPin, Calendar, Wrench, Palette, Gauge, Award, Eye, Star, Shield, ChevronRight, ChevronLeft, MessageCircle, User, Activity, Lock, CheckCircle2, BookmarkCheck, CreditCard, X, AlertCircle, FileText, Download, Printer, ShieldCheck, CheckCheck, Heart, Clock } from 'lucide-react';
 import MotoCard from '../components/MotoCard';
+import ImageLightboxModal from '../components/ImageLightboxModal';
 import { motoApi, offerApi, apartadoApi, certificationApi } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import { useFavorites } from '../context/FavoritesContext';
@@ -28,6 +29,7 @@ const MotoDetailPage = () => {
   const [similar, setSimilar] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedImage, setSelectedImage] = useState(0);
+  const [isLightboxOpen, setIsLightboxOpen] = useState(false);
   const [selectedPkg, setSelectedPkg] = useState(null);
   const [offerAmount, setOfferAmount] = useState('');
   const [offerLoading, setOfferLoading] = useState(false);
@@ -350,26 +352,35 @@ const MotoDetailPage = () => {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         <div className="lg:col-span-2">
-          <div className="relative aspect-[16/10] rounded-md overflow-hidden bg-[#111112] border border-white/5 group">
+          <div 
+            onClick={() => setIsLightboxOpen(true)}
+            className="relative aspect-[16/10] rounded-md overflow-hidden bg-[#111112] border border-white/5 group cursor-pointer"
+          >
             <img 
               src={images[selectedImage] || resolveSafeImageUrl(FALLBACK_MOTO_IMAGE, 'moto')} 
               alt={moto.model || 'Motocicleta'} 
               onError={(e) => handleImageError(e, 'moto')}
-              className="w-full h-full object-cover transition-all duration-300" 
+              className="w-full h-full object-cover transition-all duration-300 group-hover:brightness-105" 
             />
             
             {/* Click Navigation Controls on Image */}
             {images.length > 1 && (
               <>
                 <button
-                  onClick={() => setSelectedImage((prev) => (prev > 0 ? prev - 1 : images.length - 1))}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setSelectedImage((prev) => (prev > 0 ? prev - 1 : images.length - 1));
+                  }}
                   className="absolute left-3 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-black/60 hover:bg-red-brand text-white flex items-center justify-center transition-all opacity-80 hover:opacity-100 shadow-lg border border-white/10"
                   aria-label="Anterior imagen"
                 >
                   <ChevronLeft size={20} />
                 </button>
                 <button
-                  onClick={() => setSelectedImage((prev) => (prev < images.length - 1 ? prev + 1 : 0))}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setSelectedImage((prev) => (prev < images.length - 1 ? prev + 1 : 0));
+                  }}
                   className="absolute right-3 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-black/60 hover:bg-red-brand text-white flex items-center justify-center transition-all opacity-80 hover:opacity-100 shadow-lg border border-white/10"
                   aria-label="Siguiente imagen"
                 >
@@ -387,7 +398,10 @@ const MotoDetailPage = () => {
             {/* Favorite Heart Button on Main Image */}
             <button
               type="button"
-              onClick={() => toggleFavorite(moto)}
+              onClick={(e) => {
+                e.stopPropagation();
+                toggleFavorite(moto);
+              }}
               aria-label={fav ? 'Quitar de favoritos' : 'Guardar en favoritos'}
               title={fav ? 'Quitar de tus motos guardadas' : 'Guardar en tus motos guardadas'}
               className={`absolute top-4 right-4 z-20 p-2.5 rounded-full transition-all duration-300 shadow-xl flex items-center justify-center ${
@@ -1195,6 +1209,16 @@ const MotoDetailPage = () => {
           </div>
         </div>
       )}
+      {/* Visor Full Screen / Lightbox */}
+      <ImageLightboxModal
+        isOpen={isLightboxOpen}
+        onClose={() => setIsLightboxOpen(false)}
+        images={images}
+        currentIndex={selectedImage}
+        onIndexChange={setSelectedImage}
+        imageType="moto"
+        altTitle={moto.model || 'Motocicleta'}
+      />
     </div>
   );
 };
