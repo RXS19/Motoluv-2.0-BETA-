@@ -183,13 +183,15 @@ const ShopPage = () => {
             </div>
             <div className="space-y-1.5">
               <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-red-brand/15 border border-red-brand/30 text-red-400 text-[10px] font-bold uppercase tracking-widest">
-                Información Censurada / En Revisión
+                PRÓXIMAMENTE
               </div>
               <h3 className="font-display font-bold text-white text-lg md:text-xl uppercase tracking-wide">
-                Accesorios y Equipamiento
+                ACCESORIOS Y EQUIPAMIENTO
               </h3>
               <p className="text-zinc-400 text-xs leading-relaxed max-w-sm mx-auto">
-                La información de costos, inventario y disponibilidad de esta sección ha sido censurada temporalmente mientras se actualizan los nuevos esquemas oficiales.
+                Estamos preparando algo especial para llevar tu experiencia Motoluv al siguiente nivel.
+                <br /><br />
+                Muy pronto descubrirás todo lo que tenemos preparado para ti.
               </p>
             </div>
           </div>

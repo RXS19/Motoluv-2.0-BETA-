@@ -155,7 +155,7 @@ const HowItWorksPage = () => {
                   PAQUETES MOTOLUV
                 </h3>
                 <p className="text-zinc-400 text-xs leading-relaxed max-w-sm mx-auto">
-                  Estamos preparando algo especial para llevar tu experiencia en Motoluv al siguiente nivel.
+                  Estamos preparando algo especial para llevar tu experiencia Motoluv al siguiente nivel.
                   <br /><br />
                   Muy pronto descubrirás todo lo que tenemos preparado para ti.
                 </p>
