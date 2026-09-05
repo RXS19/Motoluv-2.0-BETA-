@@ -159,3 +159,27 @@ export const getPointStatusConfig = (raw) => {
       };
   }
 };
+
+/**
+ * Mapeo oficial del estado GENERAL de certificación de Motoluv:
+ * APROBADA    -> CERTIFICADA
+ * CERTIFICADA -> CERTIFICADA
+ * RECHAZADA   -> RECHAZADA
+ * NO_APROBADA -> RECHAZADA
+ * null / vacío / otro -> PENDIENTE
+ *
+ * REGLA ESTRICTA:
+ * NUNCA mostrar REGULAR, ACEPTABLE, REQUIERE_ATENCION ni RECHAZO como estado general.
+ * NUNCA utilizar moto_certifications.global_status como sustituto directo del estado general.
+ */
+export const mapCertificationStatus = (raw) => {
+  if (!raw) return 'PENDIENTE';
+  const s = String(raw).trim().toUpperCase();
+  if (s === 'APROBADA' || s === 'CERTIFICADA') {
+    return 'CERTIFICADA';
+  }
+  if (s === 'RECHAZADA' || s === 'NO_APROBADA') {
+    return 'RECHAZADA';
+  }
+  return 'PENDIENTE';
+};

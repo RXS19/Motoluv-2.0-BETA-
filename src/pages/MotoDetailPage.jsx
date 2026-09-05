@@ -14,6 +14,7 @@ import {
   getModuleStatusConfig,
   INSPECTION_GROUPS,
   getPointStatusConfig,
+  mapCertificationStatus,
 } from '../constants/inspectionProtocol';
 
 const PKG_PRICES = { basico: 0, plus: 1800, total: 3500 };
@@ -33,13 +34,14 @@ const MotoDetailPage = () => {
 
   // Apartado state from public.apartados
   const [apartado, setApartado] = useState(null);
+  const [apartadoLoaded, setApartadoLoaded] = useState(false);
   const [showApartadoModal, setShowApartadoModal] = useState(false);
   const [apartadoPaymentMethod, setApartadoPaymentMethod] = useState('card');
   const [apartadoLoading, setApartadoLoading] = useState(false);
 
   const hasApartado = Boolean(apartado && apartado.status === 'REALIZADO');
   const certStatusNormalized = String(apartado?.certification_status || '').toUpperCase();
-  const isCertificationApproved = hasApartado && certStatusNormalized === 'APROBADA';
+  const isCertificationApproved = hasApartado && (certStatusNormalized === 'APROBADA' || certStatusNormalized === 'CERTIFICADA');
 
   const fav = isFavorite(moto?.id);
 
@@ -100,22 +102,48 @@ const MotoDetailPage = () => {
 
   useEffect(() => {
     if (user && moto && moto.id) {
-      apartadoApi.getByMoto(moto.id).then((apt) => {
-        if (apt) {
-          setApartado(apt);
-        }
-      }).catch(() => {});
+      apartadoApi.getByMoto(moto.id)
+        .then((apt) => {
+          if (apt) {
+            setApartado(apt);
+          } else {
+            setApartado(null);
+          }
+        })
+        .catch(() => {
+          setApartado(null);
+        })
+        .finally(() => {
+          setApartadoLoaded(true);
+        });
+    } else {
+      setApartado(null);
+      setApartadoLoaded(true);
     }
   }, [user, moto]);
 
   useEffect(() => {
-    if (!user || !moto?.id) {
+    if (!user || !moto?.id || !apartadoLoaded) {
+      setMotoCertification(null);
+      return;
+    }
+
+    const isOwnerUser = Boolean(user?.id && moto?.owner_id && String(user.id) === String(moto.owner_id));
+    const isBuyerUser = Boolean(user?.id && apartado?.buyer_id && String(user.id) === String(apartado.buyer_id));
+
+    // Seguridad: Solo el comprador vinculado al NOD o el vendedor/propietario pueden consultar los datos
+    if (!isOwnerUser && !isBuyerUser) {
+      setMotoCertification(null);
+      return;
+    }
+
+    const targetNod = apartado?.nod || null;
+    if (!targetNod && !isOwnerUser) {
       setMotoCertification(null);
       return;
     }
 
     setCertLoading(true);
-    const targetNod = apartado?.nod || null;
     certificationApi.getByNodOrMoto({ nod: targetNod, motoId: moto.id })
       .then((cert) => {
         setMotoCertification(cert || null);
@@ -127,7 +155,7 @@ const MotoDetailPage = () => {
       .finally(() => {
         setCertLoading(false);
       });
-  }, [user, moto?.id, apartado?.nod]);
+  }, [user, moto?.id, moto?.owner_id, apartado?.nod, apartado?.buyer_id, apartadoLoaded]);
 
   if (loading) {
     return <div className="max-w-3xl mx-auto px-5 py-32 text-center text-zinc-500">Cargando motocicleta...</div>;
@@ -260,20 +288,23 @@ const MotoDetailPage = () => {
     setShowCertModal(true);
   };
 
-  // Determine certification status for display:
-  // Source of truth: public.moto_certifications
-  const rawCertStatus = String(motoCertification?.global_status || apartado?.certification_status || moto?.certification_status || '').toUpperCase();
-  const buyerCertStatus = (rawCertStatus === 'APROBADA' || rawCertStatus === 'CERTIFICADA' || rawCertStatus === 'ACEPTABLE')
-    ? 'CERTIFICADA'
-    : (rawCertStatus === 'RECHAZADA' || rawCertStatus === 'RECHAZO' ? 'RECHAZADA' : (rawCertStatus === 'REGULAR' ? 'REGULAR' : 'PENDIENTE'));
-
-  const certStatus = motoCertification?.global_status
-    ? motoCertification.global_status
-    : (isOwner ? (apartado?.certification_status || moto?.certification_status || 'PENDIENTE') : buyerCertStatus);
+  // Regla Principal: El estado GENERAL de certificación de Motoluv solamente puede mostrarse como:
+  // PENDIENTE, CERTIFICADA, RECHAZADA.
+  // Mapeo:
+  // APROBADA    -> CERTIFICADA
+  // CERTIFICADA -> CERTIFICADA
+  // RECHAZADA   -> RECHAZADA
+  // NO_APROBADA -> RECHAZADA
+  // null / vacío / otro -> PENDIENTE
+  //
+  // NUNCA mostrar REGULAR, ACEPTABLE, REQUIERE_ATENCION ni RECHAZO como estado general.
+  // NUNCA utilizar motoCertification.global_status como sustituto directo del estado general.
+  const rawCertStatus = apartado?.certification_status || moto?.certification_status || '';
+  const certStatus = mapCertificationStatus(rawCertStatus);
 
   const certFolio = motoCertification?.folio || (apartado?.nod 
     ? `CERT-${apartado.nod}` 
-    : (apartado?.id ? `FOL-${String(apartado.id).slice(0, 8).toUpperCase()}` : (moto?.id ? `FOL-${String(moto.id).slice(0, 8).toUpperCase()}` : 'FOL-PENDIENTE')));
+    : (apartado?.id ? `FOL-${String(apartado.id).slice(0, 8).toUpperCase()}` : (moto?.id ? `FOL-${String(moto.id).slice(0, 8).toUpperCase()}` : 'No disponible')));
 
   const certDate = motoCertification?.inspection_date
     ? new Date(motoCertification.inspection_date).toLocaleDateString('es-MX', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })
@@ -281,10 +312,10 @@ const MotoDetailPage = () => {
         ? new Date(apartado.certification_appointment_at).toLocaleDateString('es-MX', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })
         : (moto?.certification_appointment_at 
             ? new Date(moto.certification_appointment_at).toLocaleDateString('es-MX', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })
-            : 'Por programar'));
+            : 'No disponible'));
 
-  const certInspector = motoCertification?.inspector_name || apartado?.inspector_name || moto?.inspector_name || 'Perito Asignado Motoluv';
-  const certNotes = motoCertification?.inspection_notes || apartado?.inspection_notes || moto?.inspection_notes || moto?.certification_notes || 'Diagnóstico e inspección técnica conforme al protocolo oficial de Motoluv.';
+  const certInspector = motoCertification?.inspector_name || apartado?.inspector_name || moto?.inspector_name || 'No asignado';
+  const certNotes = motoCertification?.inspection_notes || apartado?.inspection_notes || moto?.inspection_notes || moto?.certification_notes || 'Sin observaciones registradas.';
 
   const rawScoreDetails = (moto && (moto.score_details || moto.scoreDetails)) || null;
   const scoreDetails = (rawScoreDetails && typeof rawScoreDetails === 'object' && Object.keys(rawScoreDetails).length > 0)
@@ -444,7 +475,7 @@ const MotoDetailPage = () => {
                     <div>
                       <div className="text-xs text-zinc-400 uppercase tracking-wider font-medium">Score Mecánico</div>
                       <div className="text-white font-bold text-sm flex items-center gap-1 mt-0.5">
-                        <CheckCheck size={15} className={buyerCertStatus === 'RECHAZADA' ? 'text-red-400' : 'text-emerald-400'} /> {certStatus}
+                        <CheckCheck size={15} className={certStatus === 'RECHAZADA' ? 'text-red-400' : 'text-emerald-400'} /> {certStatus}
                       </div>
                     </div>
                   </div>
@@ -479,7 +510,7 @@ const MotoDetailPage = () => {
                     <>
                       <div className="border-t md:border-t-0 md:border-l border-white/5 pt-3 md:pt-0 md:pl-4">
                         <div className="text-[10px] text-zinc-500 uppercase tracking-widest">Estado Certificación</div>
-                        <div className="text-white font-bold text-sm mt-0.5">{buyerCertStatus}</div>
+                        <div className="text-white font-bold text-sm mt-0.5">{certStatus}</div>
                         <div className="text-[11px] text-zinc-400 mt-1">Inspección oficial Motoluv</div>
                       </div>
 
@@ -693,9 +724,9 @@ const MotoDetailPage = () => {
                   <div className="flex items-center justify-between">
                     <span className="text-white font-medium">Dictamen:</span>
                     <span className={`font-bold px-2 py-0.5 rounded text-[10px] uppercase ${
-                      buyerCertStatus === 'CERTIFICADA'
+                      certStatus === 'CERTIFICADA'
                         ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' 
-                        : buyerCertStatus === 'RECHAZADA'
+                        : certStatus === 'RECHAZADA'
                         ? 'bg-red-500/20 text-red-400 border border-red-500/30'
                         : 'bg-amber-500/20 text-amber-400 border border-amber-500/30'
                     }`}>
@@ -1045,13 +1076,13 @@ const MotoDetailPage = () => {
               <div>
                 <span className="text-zinc-500 text-[10px] uppercase block">Dictamen Final</span>
                 <span className={`font-bold flex items-center gap-1 ${
-                  motoCertification.global_status === 'RECHAZADA' || motoCertification.global_status === 'RECHAZO'
+                  certStatus === 'RECHAZADA'
                     ? 'text-red-400'
-                    : motoCertification.global_status === 'REGULAR'
+                    : certStatus === 'PENDIENTE'
                     ? 'text-amber-400'
                     : 'text-emerald-400'
                 }`}>
-                  <CheckCircle2 size={13} /> {motoCertification.global_status || certStatus}
+                  <CheckCircle2 size={13} /> {certStatus}
                 </span>
               </div>
             </div>

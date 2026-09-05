@@ -1246,41 +1246,50 @@ export const certificationApi = {
         const { data: { session } } = await supabase.auth.getSession();
         if (!session?.user?.id) return null;
 
-        // 1. Priority 1: NOD + moto_id
-        if (nod && motoId) {
+        const cleanNod = nod ? String(nod).trim() : null;
+        const cleanMotoId = motoId ? String(motoId).trim() : null;
+
+        // 1. Regla NOD: Cuando exista NOD, la certificación DEBE resolverse por:
+        //    NOD + moto_id y, cuando sea necesario, por NOD.
+        //    NO utilizar moto_id como fallback cuando ya existe un NOD disponible
+        //    para evitar mezclar certificaciones de diferentes operaciones.
+        if (cleanNod) {
+          if (cleanMotoId) {
+            const { data, error } = await supabase
+              .from('moto_certifications')
+              .select('*')
+              .eq('nod', cleanNod)
+              .eq('moto_id', cleanMotoId)
+              .order('created_at', { ascending: false })
+              .limit(1);
+
+            if (!error && Array.isArray(data) && data.length > 0) {
+              return data[0];
+            }
+          }
+
           const { data, error } = await supabase
             .from('moto_certifications')
             .select('*')
-            .eq('nod', String(nod))
-            .eq('moto_id', String(motoId))
+            .eq('nod', cleanNod)
             .order('created_at', { ascending: false })
             .limit(1);
 
           if (!error && Array.isArray(data) && data.length > 0) {
             return data[0];
           }
+
+          // Si existe NOD y no hay registro en moto_certifications para ese NOD,
+          // NUNCA hacer fallback a moto_id para no traer certificados de otra operación.
+          return null;
         }
 
-        // 2. Priority 2: Query by NOD
-        if (nod) {
+        // 2. Solo si NO existe NOD, buscar por moto_id
+        if (cleanMotoId) {
           const { data, error } = await supabase
             .from('moto_certifications')
             .select('*')
-            .eq('nod', String(nod))
-            .order('created_at', { ascending: false })
-            .limit(1);
-
-          if (!error && Array.isArray(data) && data.length > 0) {
-            return data[0];
-          }
-        }
-
-        // 3. Priority 3: Query by moto_id
-        if (motoId) {
-          const { data, error } = await supabase
-            .from('moto_certifications')
-            .select('*')
-            .eq('moto_id', String(motoId))
+            .eq('moto_id', cleanMotoId)
             .order('created_at', { ascending: false })
             .limit(1);
 
