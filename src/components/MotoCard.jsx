@@ -178,7 +178,7 @@ const MotoCard = ({ moto, showScore = true, showStatus = false }) => {
 
         {/* Apartado Badge Callout */}
         <div className="mt-3 pt-2.5 flex items-center justify-between text-xs bg-red-brand/10 -mx-4 -mb-4 px-4 py-2.5 border-t border-black">
-          <span className="text-zinc-300 font-medium text-[11px]">Separación del inventario por <strong className="text-white">24 hrs</strong></span>
+          <span className="text-zinc-300 font-medium text-[11px]">Separación De Inventario</span>
           <span className="text-red-brand font-bold uppercase tracking-wider text-[10px] bg-red-brand/10 border border-red-brand/30 px-2 py-0.5 rounded-sm">
             APARTAR
           </span>
