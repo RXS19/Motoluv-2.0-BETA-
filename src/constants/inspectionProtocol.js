@@ -1,6 +1,6 @@
 /**
- * Protocolo oficial de inspección técnica vehicular de Motoluv.
- * 6 módulos mecánicos para la vista general y 20 puntos de inspección detallada.
+ * Protocolo de inspección técnica vehicular de Motoluv.
+ * Módulos mecánicos para la vista general y desglose de inspección detallada.
  */
 
 export const MECHANICAL_MODULES = [
@@ -61,7 +61,6 @@ export const getModuleStatusConfig = (raw) => {
 export const INSPECTION_GROUPS = [
   {
     group: 'Identificación Básica',
-    range: 'Puntos 1–2',
     points: [
       { id: '1', number: 1, label: 'Número de Identificación Vehicular (VIN) y serie legible' },
       { id: '2', number: 2, label: 'Cotejo de número de motor, placa y registro legal' },
@@ -69,7 +68,6 @@ export const INSPECTION_GROUPS = [
   },
   {
     group: 'Motor',
-    range: 'Puntos 3–7',
     points: [
       { id: '3', number: 3, label: 'Compresión y encendido de motor en frío/caliente' },
       { id: '4', number: 4, label: 'Hermeticidad y ausencia de fugas (aceite y refrigerante)' },
@@ -80,7 +78,6 @@ export const INSPECTION_GROUPS = [
   },
   {
     group: 'Transmisión',
-    range: 'Puntos 8–10',
     points: [
       { id: '8', number: 8, label: 'Accionamiento y tacto del embrague (clutch)' },
       { id: '9', number: 9, label: 'Caja de velocidades, selector y engrane de marchas' },
@@ -89,7 +86,6 @@ export const INSPECTION_GROUPS = [
   },
   {
     group: 'Frenos',
-    range: 'Puntos 11–12',
     points: [
       { id: '11', number: 11, label: 'Desgaste y estado de balatas, discos y/o tambores' },
       { id: '12', number: 12, label: 'Líquido de frenos, bombas, líneas y respuesta hidráulica' },
@@ -97,7 +93,6 @@ export const INSPECTION_GROUPS = [
   },
   {
     group: 'Suspensión y dirección',
-    range: 'Puntos 13–14',
     points: [
       { id: '13', number: 13, label: 'Horquillas, retenes, vástagos y amortiguación delantera' },
       { id: '14', number: 14, label: 'Monoamortiguador/doble amortiguador y rodamientos de dirección' },
@@ -105,7 +100,6 @@ export const INSPECTION_GROUPS = [
   },
   {
     group: 'Sistema eléctrico',
-    range: 'Puntos 15–17',
     points: [
       { id: '15', number: 15, label: 'Batería, voltaje y sistema de carga / alternador' },
       { id: '16', number: 16, label: 'Iluminación principal, cuartos, direccionales y stop' },
@@ -114,7 +108,6 @@ export const INSPECTION_GROUPS = [
   },
   {
     group: 'Ruedas y estructura',
-    range: 'Puntos 18–20',
     points: [
       { id: '18', number: 18, label: 'Profundidad de piso, fecha y estado de neumáticos' },
       { id: '19', number: 19, label: 'Rines (sin fisuras ni desbalanceo) y rodamientos de masa' },

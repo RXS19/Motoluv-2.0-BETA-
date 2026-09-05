@@ -23,14 +23,24 @@ const MotoCard = ({ moto, showScore = true, showStatus = false }) => {
     )
   );
 
-  // Requirement 2:
-  // La etiqueta “PUBLICADA” debe verla únicamente el dueño de la publicación dentro de su dashboard.
-  // Nunca mostrar esa etiqueta en el sitio público ni a otros usuarios.
-  // No ocultarla solo con CSS: la condición debe depender del usuario autenticado.
+  const isBuyer = Boolean(
+    user && (
+      user.id === moto.buyer_id ||
+      user.id === moto.buyerId ||
+      moto.is_linked_buyer
+    )
+  );
+
+  const isInvolvedInOperation = isOwner || isBuyer;
+
+  // Las etiquetas de "revisión" o "publicada" únicamente deben ser visibles por los involucrados en la operación
+  const normLabel = String(style?.label || '').toUpperCase();
+  const isRevisionOrPublicada = normLabel.includes('REVISI') || normLabel.includes('PUBLICADA');
+
   const shouldRenderStatusBadge = Boolean(
-    style.label === 'PUBLICADA'
-      ? (showStatus && isOwner)
-      : (user && (isOwner || user.id === moto.buyer_id || moto.is_linked_buyer || showStatus))
+    isRevisionOrPublicada
+      ? (isInvolvedInOperation && (showStatus || isOwner))
+      : (user && (isInvolvedInOperation || showStatus))
   );
 
   // Score is ONLY visible if user is logged in

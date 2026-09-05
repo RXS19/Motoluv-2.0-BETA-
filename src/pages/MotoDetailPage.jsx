@@ -439,7 +439,7 @@ const MotoDetailPage = () => {
               <div>
                 <div className="flex items-center gap-2">
                   <span className="px-2.5 py-1 bg-red-brand/10 border border-red-brand/30 text-red-brand text-[10px] font-extrabold uppercase tracking-widest rounded-sm inline-flex items-center gap-1.5">
-                    <ShieldCheck size={13} /> Certificación Oficial Motoluv
+                    <ShieldCheck size={13} /> Certificación Motoluv
                   </span>
                   <span className="text-zinc-500 text-xs">• Inspección Certificada</span>
                 </div>
@@ -516,7 +516,7 @@ const MotoDetailPage = () => {
 
                       <div className="border-t md:border-t-0 md:border-l border-white/5 pt-3 md:pt-0 md:pl-4">
                         <div className="text-[10px] text-zinc-500 uppercase tracking-widest">Garantía Técnica</div>
-                        <div className="text-zinc-300 text-xs font-medium mt-0.5">Certificación Oficial Motoluv</div>
+                        <div className="text-zinc-300 text-xs font-medium mt-0.5">Certificación Motoluv</div>
                         <div className="text-[11px] text-zinc-500 mt-1">Dictamen avalado por peritaje</div>
                       </div>
                     </>
@@ -528,7 +528,6 @@ const MotoDetailPage = () => {
                   <div>
                     <div className="text-xs text-zinc-400 uppercase tracking-widest font-bold mb-4 flex items-center justify-between">
                       <span>Evaluación por Sistemas Mecánicos y Estructurales</span>
-                      <span className="text-[10px] text-zinc-500 font-normal">Tolerancia fabricante OK</span>
                     </div>
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-4">
@@ -553,7 +552,7 @@ const MotoDetailPage = () => {
 
                     <div className="mt-3 text-[11px] text-zinc-500 flex items-center gap-2">
                       <CheckCircle2 size={13} className="text-zinc-500" />
-                      <span>6 áreas mecánicas evaluadas · 20 puntos inspeccionados</span>
+                      <span>6 áreas mecánicas evaluadas</span>
                     </div>
                   </div>
                 ) : (
@@ -625,9 +624,15 @@ const MotoDetailPage = () => {
         <div className="space-y-5">
           <div className="bg-[#111112] border border-black rounded-md p-6">
             <div className="flex items-center justify-end gap-2 mb-2">
-              {Boolean(user && (user.id === moto.owner_id || user.id === moto.ownerId || user.id === moto.buyer_id || hasApartado)) && (() => {
+              {(() => {
+                const isOwnerOrSeller = Boolean(user && (user.id === moto.owner_id || user.id === moto.ownerId || user.id === moto.seller_id || user.id === moto.sellerId));
+                const isBuyerInvolved = Boolean(user && (user.id === moto.buyer_id || user.id === moto.buyerId || (apartado && apartado.buyer_id === user.id) || hasApartado));
+                const isInvolved = isOwnerOrSeller || isBuyerInvolved;
+
+                // Las etiquetas de "revisión" o "publicada" únicamente deben ser visibles por los involucrados en la operación
+                if (!isInvolved) return null;
+
                 const style = getStatusStyle(moto.status);
-                if (style.label === 'Publicada') return null;
                 return (
                   <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-sm border text-[10px] font-bold uppercase tracking-wider ${style.badgeClass}`}>
                     <span className={`w-1.5 h-1.5 rounded-full ${style.dotClass}`}></span>
@@ -821,32 +826,43 @@ const MotoDetailPage = () => {
                       { id: 'basico', name: 'Básico', price: 'Gratis', desc: 'Revisión documental' },
                       { id: 'plus', name: 'Plus', price: '$1,800 MXN', rec: true, desc: 'Garantía 30 días' },
                       { id: 'total', name: 'Total', price: '$3,500 MXN', desc: 'Garantía 90 días + Asistencia vial' },
-                    ].map((p) => (
-                      <label 
-                        key={p.id} 
-                        onClick={(e) => {
-                          e.preventDefault();
-                          setSelectedPkg((prev) => (prev === p.id ? null : p.id));
-                        }}
-                        className={`flex items-center justify-between p-3 border rounded-sm cursor-pointer transition-colors select-none ${selectedPkg === p.id ? 'border-red-brand bg-red-brand/5' : 'border-white/10 hover:border-red-brand/40'}`}
-                      >
-                        <div className="flex items-center gap-3">
-                          <input 
-                            type="radio" 
-                            name="moto_package"
-                            checked={selectedPkg === p.id} 
-                            onChange={() => {}}
-                            className="accent-red-500 pointer-events-none" 
-                          />
-                          <div>
-                            <div className="text-white text-sm font-medium">{p.name}</div>
-                            <div className="text-[10px] text-zinc-500">{p.desc}</div>
-                            {p.rec && <div className="text-[9px] text-red-brand tracking-widest uppercase font-bold mt-0.5">Recomendado</div>}
+                    ].map((p) => {
+                      const isCensored = p.id === 'plus' || p.id === 'total';
+                      return (
+                        <label 
+                          key={p.id} 
+                          onClick={(e) => {
+                            e.preventDefault();
+                            if (isCensored) return;
+                            setSelectedPkg((prev) => (prev === p.id ? null : p.id));
+                          }}
+                          className={`flex items-center justify-between p-3 border rounded-sm transition-all select-none ${
+                            isCensored
+                              ? 'border-white/5 opacity-40 filter blur-[2px] pointer-events-none cursor-not-allowed'
+                              : selectedPkg === p.id
+                              ? 'border-red-brand bg-red-brand/5 cursor-pointer'
+                              : 'border-white/10 hover:border-red-brand/40 cursor-pointer'
+                          }`}
+                        >
+                          <div className="flex items-center gap-3">
+                            <input 
+                              type="radio" 
+                              name="moto_package"
+                              disabled={isCensored}
+                              checked={!isCensored && selectedPkg === p.id} 
+                              onChange={() => {}}
+                              className="accent-red-500 pointer-events-none" 
+                            />
+                            <div>
+                              <div className="text-white text-sm font-medium">{p.name}</div>
+                              <div className="text-[10px] text-zinc-500">{p.desc}</div>
+                              {p.rec && <div className="text-[9px] text-red-brand tracking-widest uppercase font-bold mt-0.5">Recomendado</div>}
+                            </div>
                           </div>
-                        </div>
-                        <div className="text-zinc-300 text-xs font-bold">{p.price}</div>
-                      </label>
-                    ))}
+                          <div className="text-zinc-300 text-xs font-bold">{p.price}</div>
+                        </label>
+                      );
+                    })}
                   </div>
 
                   <div className="mt-4 pt-2 border-t border-white/5">
@@ -1087,13 +1103,13 @@ const MotoDetailPage = () => {
               </div>
             </div>
 
-            {/* Detailed Inspection Matrix - 20 Puntos */}
+            {/* Detailed Inspection Matrix */}
             <div className="space-y-4">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
                 <h4 className="text-xs font-bold text-white uppercase tracking-wider flex items-center gap-2">
                   <Award size={14} className="text-red-brand" /> Resultados por Módulo de Inspección Certificada
                 </h4>
-                <span className="text-[10px] text-zinc-400">20 puntos de inspección técnica oficial</span>
+                <span className="text-[10px] text-zinc-400">Inspección técnica de seguridad</span>
               </div>
 
               {motoCertification.inspection_items && typeof motoCertification.inspection_items === 'object' && Object.keys(motoCertification.inspection_items).length > 0 ? (
@@ -1102,7 +1118,6 @@ const MotoDetailPage = () => {
                     <div key={group.group} className="space-y-2">
                       <div className="flex items-center justify-between text-[11px] font-bold uppercase tracking-wider text-zinc-400 border-b border-white/5 pb-1">
                         <span className="text-zinc-300">{group.group}</span>
-                        <span className="text-zinc-500 text-[10px] font-normal">{group.range}</span>
                       </div>
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                         {group.points.map((pt) => {
@@ -1121,7 +1136,7 @@ const MotoDetailPage = () => {
                                   <Clock size={13} className="text-zinc-500 flex-shrink-0" />
                                 )}
                                 <span className="truncate" title={pt.label}>
-                                  <strong className="text-zinc-400 font-mono mr-1">{pt.number}.</strong>{pt.label}
+                                  {pt.label}
                                 </span>
                               </span>
                               <span className={`font-mono font-bold text-[10px] px-2 py-0.5 rounded border flex-shrink-0 ${meta.badgeClass}`}>
