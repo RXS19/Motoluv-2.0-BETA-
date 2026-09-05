@@ -1162,25 +1162,6 @@ api.get('/auth/me', authenticateToken, (req, res) => {
     return res.json(list);
   });
 
-  api.get('/operations/tracking', async (req, res) => {
-    try {
-      let contracts: any[] = [];
-      let tracking: any[] = [];
-      if (supabaseServer) {
-        const [cRes, otRes] = await Promise.all([
-          supabaseServer.from('contracts').select('*'),
-          supabaseServer.from('operation_tracking').select('*'),
-        ]);
-        contracts = cRes.data || [];
-        tracking = otRes.data || [];
-      }
-      return res.json({ contracts, tracking });
-    } catch (err: any) {
-      console.warn('Error fetching operations tracking:', err?.message || err);
-      return res.json({ contracts: [], tracking: [] });
-    }
-  });
-
   api.put('/apartados/:id/appointment', authenticateToken, async (req, res) => {
     const { appointment_at, workshop_name, workshop_id, moto_id } = req.body;
     let targetMotoId = moto_id;

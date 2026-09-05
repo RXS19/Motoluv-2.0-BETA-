@@ -8,7 +8,7 @@ export const API = `${BACKEND_URL}/api`;
 // Helper: resolve relative image URLs with safe fallbacks
 export const resolveImageUrl = (url, fallbackType = 'moto') => resolveSafeImageUrl(url, fallbackType);
 
-export const api = axios.create({ baseURL: API, timeout: 8000 });
+const api = axios.create({ baseURL: API, timeout: 8000 });
 
 api.interceptors.request.use(async (config) => {
   if (isSupabaseConfigured && supabase) {
@@ -838,14 +838,6 @@ export const apartadoApi = {
               }
             }
 
-            let operationsTrackingData = { contracts: [], tracking: [] };
-            try {
-              const { data: opData } = await api.get('/operations/tracking');
-              if (opData) operationsTrackingData = opData;
-            } catch (e) {
-              // Graceful fallback
-            }
-
             return data.map((a) => {
               const rawMoto = a.moto ? (Array.isArray(a.moto) ? a.moto[0] : a.moto) : null;
               const motoObj = rawMoto ? formatMotoRecord(rawMoto) : (fetchedMotosMap[String(a.moto_id)] || null);
@@ -857,29 +849,8 @@ export const apartadoApi = {
                 motoObj?.is_verified
               );
 
-              const motoId = String(a.moto_id || motoObj?.id || '');
-              const apartadoId = String(a.id || '');
-              const itemNod = String(a.nod || '');
-
-              const matchedContract = operationsTrackingData.contracts?.find(
-                (c) => (apartadoId && String(c.apartado_id) === apartadoId) ||
-                       (itemNod && c.nod && c.nod === itemNod) ||
-                       (motoId && c.moto_id && String(c.moto_id) === motoId)
-              ) || null;
-
-              const matchedTracking = operationsTrackingData.tracking?.find(
-                (t) => (apartadoId && String(t.apartado_id) === apartadoId) ||
-                       (itemNod && t.nod && t.nod === itemNod) ||
-                       (motoId && t.moto_id && String(t.moto_id) === motoId)
-              ) || null;
-
               return {
                 ...a,
-                contracts: matchedContract,
-                contract: matchedContract,
-                contract_status: matchedContract?.contract_status || a.contract_status || null,
-                operation_tracking: matchedTracking,
-                tracking: matchedTracking,
                 moto: motoObj || a.moto,
                 nod: a.nod || (a.id ? `NOD-${String(a.id).replace(/\D/g, '').slice(0, 6).padStart(6, '0')}` : 'NOD-000100'),
                 moto_brand: a.moto_brand || motoObj?.brand,
@@ -1062,39 +1033,10 @@ export const apartadoApi = {
               }
             }
 
-            let operationsTrackingData = { contracts: [], tracking: [] };
-            try {
-              const { data: opData } = await api.get('/operations/tracking');
-              if (opData) operationsTrackingData = opData;
-            } catch (e) {
-              // Graceful fallback
-            }
-
             return filtered.map((a) => {
               const motoObj = a.moto;
-              const motoId = String(a.moto_id || motoObj?.id || '');
-              const apartadoId = String(a.id || '');
-              const itemNod = String(a.nod || '');
-
-              const matchedContract = operationsTrackingData.contracts?.find(
-                (c) => (apartadoId && String(c.apartado_id) === apartadoId) ||
-                       (itemNod && c.nod && c.nod === itemNod) ||
-                       (motoId && c.moto_id && String(c.moto_id) === motoId)
-              ) || null;
-
-              const matchedTracking = operationsTrackingData.tracking?.find(
-                (t) => (apartadoId && String(t.apartado_id) === apartadoId) ||
-                       (itemNod && t.nod && t.nod === itemNod) ||
-                       (motoId && t.moto_id && String(t.moto_id) === motoId)
-              ) || null;
-
               return {
                 ...a,
-                contracts: matchedContract,
-                contract: matchedContract,
-                contract_status: matchedContract?.contract_status || a.contract_status || null,
-                operation_tracking: matchedTracking,
-                tracking: matchedTracking,
                 nod: a.nod || (a.id ? `NOD-${String(a.id).replace(/\D/g, '').slice(0, 6).padStart(6, '0')}` : 'NOD-000100'),
                 moto_brand: a.moto_brand || motoObj?.brand,
                 moto_model: a.moto_model || motoObj?.model,
