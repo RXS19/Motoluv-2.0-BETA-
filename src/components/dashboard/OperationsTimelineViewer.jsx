@@ -164,37 +164,38 @@ export const resolveOperationTimeline = (item) => {
   // - “Pago en proceso” únicamente puede mostrarse si operation_tracking.payment_status realmente indica EN_PROCESO.
   // - Si operation_tracking no está disponible: NO asumir Pago en proceso. NO inventar estados. Mantener estado seguro/indeterminado ('pending').
   const rawPaymentStatus = String(
-    tracking?.payment_status ||
-    item.payment_status ||
-    ''
+    (isContractCompleted
+      ? tracking?.payment_status
+      : (tracking?.payment_status || item.payment_status)) || ''
   ).toUpperCase().trim();
 
   const rawAuthStatus = String(
-    tracking?.authorization_status ||
-    tracking?.auth_status ||
-    item.authorization_status ||
-    item.auth_status ||
-    ''
+    (isContractCompleted
+      ? (tracking?.authorization_status || tracking?.auth_status)
+      : (tracking?.authorization_status || tracking?.auth_status || item.authorization_status || item.auth_status)) || ''
   ).toUpperCase().trim();
 
   const rawTransferStatus = String(
-    tracking?.transfer_status ||
-    item.transfer_status ||
-    ''
+    (isContractCompleted
+      ? tracking?.transfer_status
+      : (tracking?.transfer_status || item.transfer_status)) || ''
   ).toUpperCase().trim();
 
   const rawDeliveryStatus = String(
-    tracking?.delivery_status ||
-    item.delivery_status ||
-    ''
+    (isContractCompleted
+      ? tracking?.delivery_status
+      : (tracking?.delivery_status || item.delivery_status)) || ''
   ).toUpperCase().trim();
 
   // 3. Etapa: Pago (fuente: operation_tracking.payment_status)
+  // Mantén PAGADO como COMPLETADO
   const isPagoCompleted =
     !isRejected &&
     isContractCompleted &&
     (rawPaymentStatus === 'COMPLETADO' ||
+      rawPaymentStatus === 'COMPLETADA' ||
       rawPaymentStatus === 'PAGADO' ||
+      rawPaymentStatus === 'PAGADA' ||
       rawPaymentStatus === 'EN_CUSTODIA');
 
   const isPagoInProgress =
@@ -204,12 +205,16 @@ export const resolveOperationTimeline = (item) => {
     rawPaymentStatus === 'EN_PROCESO';
 
   // 4. Etapa: Autorización (fuente: operation_tracking.authorization_status)
+  // Reconoce como COMPLETADO: authorization_status = AUTORIZADA
   const isAuthCompleted =
     !isRejected &&
     isContractCompleted &&
     (rawAuthStatus === 'COMPLETADO' ||
+      rawAuthStatus === 'COMPLETADA' ||
       rawAuthStatus === 'AUTORIZADO' ||
+      rawAuthStatus === 'AUTORIZADA' ||
       rawAuthStatus === 'APROBADO' ||
+      rawAuthStatus === 'APROBADA' ||
       rawAuthStatus === 'APPROVED');
 
   const isAuthInProgress =
@@ -219,11 +224,14 @@ export const resolveOperationTimeline = (item) => {
     (rawAuthStatus === 'EN_PROCESO' || rawAuthStatus === 'EN_REVISION');
 
   // 5. Etapa: Transferencia (fuente: operation_tracking.transfer_status)
+  // Reconoce como COMPLETADO: transfer_status = COMPLETADA
   const isTransferCompleted =
     !isRejected &&
     isContractCompleted &&
     (rawTransferStatus === 'COMPLETADO' ||
-      rawTransferStatus === 'TRANSFERIDO');
+      rawTransferStatus === 'COMPLETADA' ||
+      rawTransferStatus === 'TRANSFERIDO' ||
+      rawTransferStatus === 'TRANSFERIDA');
 
   const isTransferInProgress =
     !isRejected &&
@@ -232,10 +240,12 @@ export const resolveOperationTimeline = (item) => {
     rawTransferStatus === 'EN_PROCESO';
 
   // 6. Etapa: Entrega (fuente: operation_tracking.delivery_status)
+  // Reconoce como COMPLETADO: delivery_status = COMPLETADA
   const isDeliveryCompleted =
     !isRejected &&
     isContractCompleted &&
     (rawDeliveryStatus === 'COMPLETADO' ||
+      rawDeliveryStatus === 'COMPLETADA' ||
       rawDeliveryStatus === 'ENTREGADO' ||
       rawDeliveryStatus === 'ENTREGADA' ||
       rawDeliveryStatus === 'DELIVERED');
@@ -285,7 +295,7 @@ export const resolveOperationTimeline = (item) => {
       substatus: isRejected
         ? 'NA'
         : isPagoCompleted
-        ? 'En custodia'
+        ? (rawPaymentStatus === 'PAGADO' || rawPaymentStatus === 'PAGADA' ? 'Pagado' : 'En custodia')
         : isPagoInProgress
         ? 'En proceso'
         : 'Pendiente',
@@ -303,7 +313,7 @@ export const resolveOperationTimeline = (item) => {
       substatus: isRejected
         ? 'NA'
         : isAuthCompleted
-        ? 'Autorizado'
+        ? (rawAuthStatus === 'AUTORIZADA' ? 'Autorizada' : rawAuthStatus === 'COMPLETADA' || rawAuthStatus === 'COMPLETADO' ? 'Completada' : 'Autorizado')
         : isAuthInProgress
         ? 'En revisión'
         : 'Pendiente',
@@ -321,7 +331,7 @@ export const resolveOperationTimeline = (item) => {
       substatus: isRejected
         ? 'NA'
         : isTransferCompleted
-        ? 'Transferido'
+        ? (rawTransferStatus === 'COMPLETADA' || rawTransferStatus === 'COMPLETADO' ? 'Completada' : 'Transferido')
         : isTransferInProgress
         ? 'En proceso'
         : 'Pendiente',
@@ -339,7 +349,7 @@ export const resolveOperationTimeline = (item) => {
       substatus: isRejected
         ? 'NA'
         : isDeliveryCompleted
-        ? 'Entregada'
+        ? (rawDeliveryStatus === 'COMPLETADA' || rawDeliveryStatus === 'COMPLETADO' ? 'Completada' : 'Entregada')
         : isDeliveryInProgress
         ? 'En proceso'
         : 'Pendiente',
@@ -357,7 +367,7 @@ export const resolveOperationTimeline = (item) => {
     badgeColor = 'red';
   } else if (isDeliveryCompleted) {
     activeStageKey = 'entrega';
-    badgeLabel = 'Entregada';
+    badgeLabel = rawDeliveryStatus === 'COMPLETADA' ? 'Completada' : 'Entregada';
     badgeColor = 'emerald';
   } else if (isDeliveryInProgress) {
     activeStageKey = 'entrega';
@@ -365,7 +375,7 @@ export const resolveOperationTimeline = (item) => {
     badgeColor = 'blue';
   } else if (isTransferCompleted) {
     activeStageKey = 'transferencia';
-    badgeLabel = 'Transferido';
+    badgeLabel = rawTransferStatus === 'COMPLETADA' ? 'Completada' : 'Transferido';
     badgeColor = 'emerald';
   } else if (isTransferInProgress) {
     activeStageKey = 'transferencia';
@@ -373,7 +383,7 @@ export const resolveOperationTimeline = (item) => {
     badgeColor = 'blue';
   } else if (isAuthCompleted) {
     activeStageKey = 'autorizacion';
-    badgeLabel = 'Autorizado';
+    badgeLabel = rawAuthStatus === 'AUTORIZADA' ? 'Autorizada' : 'Autorizado';
     badgeColor = 'emerald';
   } else if (isAuthInProgress) {
     activeStageKey = 'autorizacion';
@@ -381,7 +391,7 @@ export const resolveOperationTimeline = (item) => {
     badgeColor = 'blue';
   } else if (isPagoCompleted) {
     activeStageKey = 'pago';
-    badgeLabel = 'En custodia';
+    badgeLabel = rawPaymentStatus === 'PAGADO' || rawPaymentStatus === 'PAGADA' ? 'Pagado' : 'En custodia';
     badgeColor = 'emerald';
   } else if (isPagoInProgress) {
     activeStageKey = 'pago';
@@ -610,8 +620,22 @@ const OperationsTimelineViewer = ({
     return items
       .map((item) => {
         const itemNod = item?.nod || item?.apartado?.nod || item?.raw?.nod || null;
-        const contract = item?.contract || (itemNod ? extraContracts[itemNod] : null) || null;
-        const tracking = item?.tracking || item?.operation_tracking || (itemNod ? extraTracking[itemNod] : null) || null;
+        const contract = (itemNod && extraContracts[itemNod])
+          ? extraContracts[itemNod]
+          : (item?.contract || (Array.isArray(item?.contracts) ? item.contracts[0] : item?.contracts) || null);
+
+        // 4. Prioriza siempre extraTracking[NOD] sobre cualquier tracking antiguo
+        const tracking = (itemNod && extraTracking[itemNod])
+          ? extraTracking[itemNod]
+          : (item?.tracking || item?.operation_tracking || item?.raw?.tracking || item?.raw?.operation_tracking || null);
+
+        const rawContractStatus = String(contract?.contract_status || item?.contract_status || '').toUpperCase().trim();
+        const isSigned =
+          rawContractStatus === 'FIRMADO' ||
+          rawContractStatus === 'COMPLETADO' ||
+          rawContractStatus === 'SIGNED';
+
+        // 3. Para contratos firmados, usa operation_tracking como fuente de verdad para Pago, Autorización, Transferencia y Entrega
         const mergedItem = {
           ...item,
           nod: itemNod,
@@ -619,15 +643,33 @@ const OperationsTimelineViewer = ({
           contract,
           tracking,
           contract_status: contract?.contract_status || item?.contract_status || null,
-          payment_status: tracking?.payment_status || item?.payment_status || null,
-          authorization_status: tracking?.authorization_status || tracking?.auth_status || item?.authorization_status || null,
-          transfer_status: tracking?.transfer_status || item?.transfer_status || null,
-          delivery_status: tracking?.delivery_status || item?.delivery_status || null,
+          payment_status: isSigned
+            ? (tracking?.payment_status || null)
+            : (tracking?.payment_status || item?.payment_status || null),
+          authorization_status: isSigned
+            ? (tracking?.authorization_status || tracking?.auth_status || null)
+            : (tracking?.authorization_status || tracking?.auth_status || item?.authorization_status || null),
+          transfer_status: isSigned
+            ? (tracking?.transfer_status || null)
+            : (tracking?.transfer_status || item?.transfer_status || null),
+          delivery_status: isSigned
+            ? (tracking?.delivery_status || null)
+            : (tracking?.delivery_status || item?.delivery_status || null),
         };
         return resolveOperationTimeline(mergedItem);
       })
       .filter(Boolean);
   }, [items, extraContracts, extraTracking]);
+
+  // Keep selectedOperation up to date with processedItems when extraTracking/extraContracts updates
+  const activeSelectedOperation = useMemo(() => {
+    if (!selectedOperation) return null;
+    return (
+      processedItems.find((p) => p.nod && p.nod === selectedOperation.nod) ||
+      processedItems.find((p) => p.id === selectedOperation.id) ||
+      selectedOperation
+    );
+  }, [selectedOperation, processedItems]);
 
   // Dynamic counts for filter pills (6 stages + todas)
   const counts = useMemo(() => {
@@ -1146,7 +1188,7 @@ const OperationsTimelineViewer = ({
       )}
 
       {/* ================= DETAIL MODAL (NO DATES OR HOURS) ================= */}
-      {selectedOperation && (
+      {activeSelectedOperation && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 backdrop-blur-sm p-4 animate-in fade-in duration-150">
           <div className="bg-[#121216] border border-white/10 rounded-2xl max-w-xl w-full p-6 space-y-6 text-left relative shadow-2xl max-h-[90vh] overflow-y-auto">
             {/* Modal Header */}
@@ -1154,12 +1196,12 @@ const OperationsTimelineViewer = ({
               <div className="flex items-center gap-3.5">
                 <div className="w-14 h-14 rounded-xl bg-black/60 border border-white/10 overflow-hidden flex-shrink-0 relative flex items-center justify-center">
                   {(() => {
-                    const modalMotoKey = selectedOperation.moto_id ? String(selectedOperation.moto_id) : null;
-                    const modalImg = (modalMotoKey && associatedMotoImages[modalMotoKey]) || selectedOperation.image;
+                    const modalMotoKey = activeSelectedOperation.moto_id ? String(activeSelectedOperation.moto_id) : null;
+                    const modalImg = (modalMotoKey && associatedMotoImages[modalMotoKey]) || activeSelectedOperation.image;
                     return modalImg ? (
                       <img
                         src={resolveSafeImageUrl(modalImg, 'moto')}
-                        alt={selectedOperation.model}
+                        alt={activeSelectedOperation.model}
                         className="w-full h-full object-cover"
                         onError={(e) => {
                           e.target.onerror = null;
@@ -1173,14 +1215,14 @@ const OperationsTimelineViewer = ({
                 </div>
                 <div>
                   <h3 className="text-base font-bold text-white">
-                    {selectedOperation.brand} {selectedOperation.model} {selectedOperation.year}
+                    {activeSelectedOperation.brand} {activeSelectedOperation.model} {activeSelectedOperation.year}
                   </h3>
                   <p className="text-xs font-mono text-zinc-400">
-                    NOD de Operación: <span className="text-white font-semibold">{selectedOperation.nod}</span>
+                    NOD de Operación: <span className="text-white font-semibold">{activeSelectedOperation.nod}</span>
                   </p>
-                  {(!selectedOperation.isRejected || isSeller) && (
+                  {(!activeSelectedOperation.isRejected || isSeller) && (
                     <p className="text-sm font-bold text-red-brand mt-0.5">
-                      ${selectedOperation.price.toLocaleString('es-MX')} MXN
+                      ${activeSelectedOperation.price.toLocaleString('es-MX')} MXN
                     </p>
                   )}
                 </div>
@@ -1198,11 +1240,11 @@ const OperationsTimelineViewer = ({
             <div className="p-4 bg-[#18181f] border border-white/5 rounded-xl space-y-3">
               <span className="text-xs font-bold text-zinc-300 block">Etapas de la Operación</span>
               <div className="grid grid-cols-3 sm:grid-cols-6 gap-2 text-center text-[11px]">
-                {selectedOperation.steps.map((st) => (
+                {activeSelectedOperation.steps.map((st) => (
                   <div key={st.id} className="space-y-1">
                     <div
                       className={`h-1.5 rounded-full ${
-                        selectedOperation.isRejected || st.status === 'rejected'
+                        activeSelectedOperation.isRejected || st.status === 'rejected'
                           ? 'bg-red-500'
                           : st.status === 'completed'
                           ? 'bg-emerald-500'
@@ -1212,7 +1254,7 @@ const OperationsTimelineViewer = ({
                       }`}
                     />
                     <span className={`font-semibold block truncate ${
-                      selectedOperation.isRejected || st.status === 'rejected'
+                      activeSelectedOperation.isRejected || st.status === 'rejected'
                         ? 'text-red-400 font-bold'
                         : 'text-zinc-300'
                     }`}>
@@ -1222,7 +1264,7 @@ const OperationsTimelineViewer = ({
                       className={`text-[10px] block truncate ${
                         st.status === 'rejected'
                           ? 'text-red-400 font-semibold'
-                          : selectedOperation.isRejected
+                          : activeSelectedOperation.isRejected
                           ? 'text-red-400 font-semibold'
                           : st.status === 'completed'
                           ? 'text-emerald-400'
@@ -1242,24 +1284,24 @@ const OperationsTimelineViewer = ({
             <div className="space-y-3 text-xs">
               <div className="flex justify-between py-2 border-b border-white/5">
                 <span className="text-zinc-400">NOD:</span>
-                <span className="text-zinc-200 font-mono font-semibold">{selectedOperation.nod}</span>
+                <span className="text-zinc-200 font-mono font-semibold">{activeSelectedOperation.nod}</span>
               </div>
 
               {/* Counterparty details - hidden for buyer if rejected */}
-              {(!selectedOperation.isRejected || isSeller) && (
+              {(!activeSelectedOperation.isRejected || isSeller) && (
                 <div className="flex justify-between py-2 border-b border-white/5">
                   <span className="text-zinc-400">{isSeller ? 'Comprador' : 'Vendedor'}:</span>
                   <span className="text-zinc-200 font-medium">
                     {isSeller ? (
-                      selectedOperation.buyerName
+                      activeSelectedOperation.buyerName
                     ) : (
                       <span className="flex items-center gap-1.5">
                         <ShieldCheck
                           size={13}
-                          className={selectedOperation.sellerIsVerified ? 'text-emerald-400' : 'text-zinc-400'}
+                          className={activeSelectedOperation.sellerIsVerified ? 'text-emerald-400' : 'text-zinc-400'}
                         />
-                        <span className={selectedOperation.sellerIsVerified ? 'text-emerald-400 font-semibold' : 'text-zinc-300'}>
-                          {selectedOperation.sellerIsVerified ? 'Vendedor verificado' : 'Vendedor no verificado'}
+                        <span className={activeSelectedOperation.sellerIsVerified ? 'text-emerald-400 font-semibold' : 'text-zinc-300'}>
+                          {activeSelectedOperation.sellerIsVerified ? 'Vendedor verificado' : 'Vendedor no verificado'}
                         </span>
                       </span>
                     )}
@@ -1272,25 +1314,25 @@ const OperationsTimelineViewer = ({
                 <span className="text-zinc-400">Dictamen de Certificación:</span>
                 <span
                   className={`font-bold uppercase ${
-                    selectedOperation.isRejected
+                    activeSelectedOperation.isRejected
                       ? 'text-red-400'
-                      : selectedOperation.certificationStatus === 'APROBADA'
+                      : activeSelectedOperation.certificationStatus === 'APROBADA'
                       ? 'text-emerald-400'
                       : 'text-amber-400'
                   }`}
                 >
-                  {selectedOperation.isRejected
+                  {activeSelectedOperation.isRejected
                     ? 'Motocicleta Rechazada'
-                    : selectedOperation.certificationStatus}
+                    : activeSelectedOperation.certificationStatus}
                 </span>
               </div>
 
               {/* Seller-only inspection details (NO dates/hours) */}
-              {isSeller && !selectedOperation.isRejected && selectedOperation.workshop && (
+              {isSeller && !activeSelectedOperation.isRejected && activeSelectedOperation.workshop && (
                 <div className="flex justify-between py-2 border-b border-white/5">
                   <span className="text-zinc-400">Taller Oficial Asignado:</span>
                   <span className="text-zinc-200 font-medium">
-                    {selectedOperation.workshop}
+                    {activeSelectedOperation.workshop}
                   </span>
                 </div>
               )}
@@ -1300,28 +1342,28 @@ const OperationsTimelineViewer = ({
                   <span className="text-zinc-400">Estado de Cita Técnica:</span>
                   <span
                     className={`font-semibold ${
-                      selectedOperation.isRejected
+                      activeSelectedOperation.isRejected
                         ? 'text-red-400'
-                        : selectedOperation.appointmentStatus === 'COMPLETADA'
+                        : activeSelectedOperation.appointmentStatus === 'COMPLETADA'
                         ? 'text-emerald-400'
-                        : selectedOperation.appointmentStatus === 'PROGRAMADA'
+                        : activeSelectedOperation.appointmentStatus === 'PROGRAMADA'
                         ? 'text-blue-400'
-                        : selectedOperation.appointmentStatus === 'CANCELADA' || selectedOperation.appointmentStatus === 'EXPIRADA' || selectedOperation.appointmentStatus === 'EXPIRADO'
+                        : activeSelectedOperation.appointmentStatus === 'CANCELADA' || activeSelectedOperation.appointmentStatus === 'EXPIRADA' || activeSelectedOperation.appointmentStatus === 'EXPIRADO'
                         ? 'text-red-400'
                         : 'text-zinc-300'
                     }`}
                   >
-                    {selectedOperation.isRejected
+                    {activeSelectedOperation.isRejected
                       ? 'PERITAJE RECHAZADO'
-                      : selectedOperation.appointmentStatus === 'COMPLETADA'
+                      : activeSelectedOperation.appointmentStatus === 'COMPLETADA'
                       ? 'COMPLETADA'
-                      : selectedOperation.appointmentStatus === 'PROGRAMADA'
+                      : activeSelectedOperation.appointmentStatus === 'PROGRAMADA'
                       ? 'PROGRAMADA'
-                      : selectedOperation.appointmentStatus === 'EXPIRADA' || selectedOperation.appointmentStatus === 'EXPIRADO'
+                      : activeSelectedOperation.appointmentStatus === 'EXPIRADA' || activeSelectedOperation.appointmentStatus === 'EXPIRADO'
                       ? 'CITA EXPIRADA'
-                      : selectedOperation.appointmentStatus === 'CANCELADA' || selectedOperation.appointmentStatus === 'CANCELADO'
+                      : activeSelectedOperation.appointmentStatus === 'CANCELADA' || activeSelectedOperation.appointmentStatus === 'CANCELADO'
                       ? 'CITA CANCELADA'
-                      : selectedOperation.appointmentStatus || 'SIN CITA'}
+                      : activeSelectedOperation.appointmentStatus || 'SIN CITA'}
                   </span>
                 </div>
               )}
@@ -1339,10 +1381,10 @@ const OperationsTimelineViewer = ({
                 <span>Contactar Asesor Motoluv</span>
               </a>
 
-              {selectedOperation.moto_id && (
+              {activeSelectedOperation.moto_id && (
                 <Link
-                  to={`/motos/${selectedOperation.moto_id}`}
-                  onClick={(e) => handleMotoLinkClick(e, selectedOperation.moto_id)}
+                  to={`/motos/${activeSelectedOperation.moto_id}`}
+                  onClick={(e) => handleMotoLinkClick(e, activeSelectedOperation.moto_id)}
                   className="px-4 py-2.5 bg-white/10 hover:bg-white/15 text-white font-bold text-xs rounded-xl border border-white/10 flex items-center gap-1.5 transition-colors"
                 >
                   <Eye size={14} />
