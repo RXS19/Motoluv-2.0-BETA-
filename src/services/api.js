@@ -873,7 +873,7 @@ export const apartadoApi = {
               }
             }
 
-            return data.map((a) => {
+            const mappedApartados = data.map((a) => {
               const rawMoto = a.moto ? (Array.isArray(a.moto) ? a.moto[0] : a.moto) : null;
               const motoObj = rawMoto ? formatMotoRecord(rawMoto) : (fetchedMotosMap[String(a.moto_id)] || null);
               const profileInfo = profilesMap[motoObj?.owner_id];
@@ -1124,7 +1124,7 @@ export const apartadoApi = {
               }
             }
 
-            return filtered.map((a) => {
+            const mappedReceived = filtered.map((a) => {
               const motoObj = a.moto;
               const itemNod = a.nod || null;
               const contractObj = itemNod ? (contractsMap[itemNod] || a.contract || null) : (a.contract || null);
@@ -1789,6 +1789,20 @@ async function resolveBuyerUuid(rawBuyerId, apartadoId, nod) {
     }
   }
 
+  // 4. Fallback: authenticated user session if current user is buyer
+  if (isSupabaseConfigured && supabase) {
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session?.user?.id) {
+        if (!rawBuyerId || session.user.id === rawBuyerId) {
+          return session.user.id;
+        }
+      }
+    } catch (err) {
+      // ignore
+    }
+  }
+
   return null;
 }
 
@@ -1931,7 +1945,7 @@ export const notificationApi = {
 
     let inserted = null;
 
-    // 1. Direct Supabase insert
+    // Direct Supabase insert into public.notifications
     if (isSupabaseConfigured && supabase) {
       try {
         const { data, error } = await supabase
@@ -1942,20 +1956,12 @@ export const notificationApi = {
 
         if (!error && data) {
           inserted = data;
+        } else if (error) {
+          console.warn('Error inserting notification into Supabase:', error);
         }
       } catch (err) {
-        // In case RLS policy restricts client insert
+        console.warn('Exception inserting notification into Supabase:', err);
       }
-    }
-
-    // 2. Server API fallback (service role) to guarantee insertion
-    try {
-      const res = await api.post('/operations/notify', payload);
-      if (!inserted && res?.data?.notification) {
-        inserted = res.data.notification;
-      }
-    } catch (apiErr) {
-      // Ignored
     }
 
     return inserted;
@@ -1972,12 +1978,12 @@ export const notificationApi = {
 
     for (const op of opsList) {
       try {
-        const item = op.item || op;
-        const nod = item.nod || item.apartado?.nod || item.contract?.nod || item.tracking?.nod || null;
-        const apartadoId = item.id || item.apartado_id || item.apartado?.id || null;
-        const motoId = item.moto_id || item.moto?.id || null;
+        const item = op.raw || op.item || op;
+        const nod = op.nod || item.nod || item.apartado?.nod || item.contract?.nod || item.tracking?.nod || null;
+        const apartadoId = op.apartadoId || item.id || item.apartado_id || item.apartado?.id || null;
+        const motoId = op.motoId || item.moto_id || item.moto?.id || null;
 
-        const rawBuyerId = item.buyer_id || item.apartado?.buyer_id || item.contract?.buyer_id || item.tracking?.buyer_id || null;
+        const rawBuyerId = op.buyerId || item.buyer_id || item.apartado?.buyer_id || item.contract?.buyer_id || item.tracking?.buyer_id || null;
         const buyerUuid = await resolveBuyerUuid(rawBuyerId, apartadoId, nod);
         if (!buyerUuid) continue;
 

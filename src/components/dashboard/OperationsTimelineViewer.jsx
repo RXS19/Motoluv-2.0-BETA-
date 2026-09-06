@@ -256,6 +256,11 @@ export const resolveOperationTimeline = (item) => {
     !isDeliveryCompleted &&
     rawDeliveryStatus === 'EN_PROCESO';
 
+  // Determinación de primera etapa activa cuando etapas anteriores están completadas
+  const isAuthActive = !isRejected && isPagoCompleted && !isAuthCompleted;
+  const isTransferActive = !isRejected && isAuthCompleted && !isTransferCompleted;
+  const isDeliveryActive = !isRejected && isTransferCompleted && !isDeliveryCompleted;
+
   // Construcción de las 6 etapas (estrictamente SIN fechas ni horas)
   const steps = [
     {
@@ -303,6 +308,7 @@ export const resolveOperationTimeline = (item) => {
     {
       id: 'autorizacion',
       label: 'Autorización',
+      isActive: isAuthActive,
       status: isRejected
         ? 'na'
         : isAuthCompleted
@@ -321,6 +327,7 @@ export const resolveOperationTimeline = (item) => {
     {
       id: 'transferencia',
       label: 'Transferencia',
+      isActive: isTransferActive,
       status: isRejected
         ? 'na'
         : isTransferCompleted
@@ -339,6 +346,7 @@ export const resolveOperationTimeline = (item) => {
     {
       id: 'entrega',
       label: 'Entrega',
+      isActive: isDeliveryActive,
       status: isRejected
         ? 'na'
         : isDeliveryCompleted
@@ -369,7 +377,7 @@ export const resolveOperationTimeline = (item) => {
     activeStageKey = 'entrega';
     badgeLabel = rawDeliveryStatus === 'COMPLETADA' ? 'Completada' : 'Entregada';
     badgeColor = 'emerald';
-  } else if (isDeliveryInProgress) {
+  } else if (isDeliveryInProgress || isDeliveryActive) {
     activeStageKey = 'entrega';
     badgeLabel = 'Entrega';
     badgeColor = 'blue';
@@ -377,7 +385,7 @@ export const resolveOperationTimeline = (item) => {
     activeStageKey = 'transferencia';
     badgeLabel = rawTransferStatus === 'COMPLETADA' ? 'Completada' : 'Transferido';
     badgeColor = 'emerald';
-  } else if (isTransferInProgress) {
+  } else if (isTransferInProgress || isTransferActive) {
     activeStageKey = 'transferencia';
     badgeLabel = 'Transferencia';
     badgeColor = 'blue';
@@ -385,7 +393,7 @@ export const resolveOperationTimeline = (item) => {
     activeStageKey = 'autorizacion';
     badgeLabel = rawAuthStatus === 'AUTORIZADA' ? 'Autorizada' : 'Autorizado';
     badgeColor = 'emerald';
-  } else if (isAuthInProgress) {
+  } else if (isAuthInProgress || isAuthActive) {
     activeStageKey = 'autorizacion';
     badgeLabel = 'Autorización';
     badgeColor = 'blue';
@@ -975,7 +983,7 @@ const OperationsTimelineViewer = ({
                     {op.steps.map((st, index) => {
                       const isRejectedStep = st.status === 'rejected';
                       const isCompleted = st.status === 'completed' && !isRejectedStep;
-                      const isInProgress = st.status === 'in_progress' && !isRejectedStep;
+                      const isInProgress = (st.status === 'in_progress' || Boolean(st.isActive)) && !isRejectedStep;
                       const isNa = st.status === 'na' || (op.isRejected && index > 0);
 
                       const StageIcon = TIMELINE_STAGES[index]?.icon || Check;
@@ -1291,7 +1299,7 @@ const OperationsTimelineViewer = ({
                           ? 'bg-red-500'
                           : st.status === 'completed'
                           ? 'bg-emerald-500'
-                          : st.status === 'in_progress'
+                          : st.status === 'in_progress' || st.isActive
                           ? 'bg-blue-500 animate-pulse'
                           : 'bg-white/10'
                       }`}
@@ -1311,7 +1319,7 @@ const OperationsTimelineViewer = ({
                           ? 'text-red-400 font-semibold'
                           : st.status === 'completed'
                           ? 'text-emerald-400'
-                          : st.status === 'in_progress'
+                          : st.status === 'in_progress' || st.isActive
                           ? 'text-blue-400 font-semibold'
                           : 'text-zinc-500'
                       }`}
