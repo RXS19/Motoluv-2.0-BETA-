@@ -1108,6 +1108,108 @@ api.get('/auth/me', authenticateToken, (req, res) => {
     return res.json(apartado);
   });
 
+  // Operational Notifications for the 5 real operation events
+  const OPERATION_NOTIFICATION_DEFINITIONS: Record<string, { title: string; body: string }> = {
+    CONTRATO_FIRMADO: {
+      title: 'Tu contrato está firmado',
+      body: 'Tu contrato ha sido firmado correctamente.',
+    },
+    PAGO_CONFIRMADO: {
+      title: 'Pago confirmado',
+      body: 'Tu pago fue confirmado. El dinero está en custodia.',
+    },
+    OPERACION_AUTORIZADA: {
+      title: 'Operación autorizada',
+      body: 'Tu operación ha sido autorizada correctamente.',
+    },
+    TRANSFERENCIA_COMPLETADA: {
+      title: 'Transferencia completada',
+      body: 'La transferencia de tu motocicleta se completó correctamente.',
+    },
+    ENTREGA_COMPLETADA: {
+      title: '¡Tu motocicleta está contigo!',
+      body: 'La entrega se completó correctamente. ¡Felicidades por tu nueva motocicleta!',
+    },
+  };
+
+  api.post('/operations/notify', async (req, res) => {
+    try {
+      const { type, recipient_id, apartado_id, moto_id } = req.body;
+      if (!type || !OPERATION_NOTIFICATION_DEFINITIONS[type] || !recipient_id) {
+        return res.status(400).json({ success: false, error: 'Invalid operation notification payload' });
+      }
+
+      const notifDef = OPERATION_NOTIFICATION_DEFINITIONS[type];
+
+      // Prevent duplicates in Supabase notifications table
+      if (supabaseServer) {
+        try {
+          let query = supabaseServer
+            .from('notifications')
+            .select('id')
+            .eq('recipient_id', recipient_id)
+            .eq('type', type);
+
+          if (apartado_id) {
+            query = query.eq('apartado_id', String(apartado_id));
+          } else if (moto_id) {
+            query = query.eq('moto_id', String(moto_id));
+          }
+
+          const { data: existing, error: qErr } = await query.limit(1);
+          if (!qErr && Array.isArray(existing) && existing.length > 0) {
+            return res.json({ success: true, duplicate: true, message: 'Notification already exists' });
+          }
+
+          const notifId = `notif_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+          const newNotif = {
+            id: notifId,
+            recipient_id,
+            type,
+            title: notifDef.title,
+            body: notifDef.body,
+            moto_id: moto_id ? String(moto_id) : null,
+            apartado_id: apartado_id ? String(apartado_id) : null,
+            created_at: new Date().toISOString(),
+            read_at: null,
+          };
+
+          const { data: inserted, error: insErr } = await supabaseServer
+            .from('notifications')
+            .insert([newNotif])
+            .select('*')
+            .single();
+
+          if (insErr) {
+            console.warn('Error inserting notification in supabaseServer:', insErr);
+          }
+
+          db.notifications.set(notifId, newNotif);
+          return res.json({ success: true, notification: inserted || newNotif });
+        } catch (err: any) {
+          console.warn('Exception in /operations/notify:', err?.message || err);
+        }
+      }
+
+      const notifId = `notif_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+      const fallbackNotif = {
+        id: notifId,
+        recipient_id,
+        type,
+        title: notifDef.title,
+        body: notifDef.body,
+        moto_id: moto_id ? String(moto_id) : null,
+        apartado_id: apartado_id ? String(apartado_id) : null,
+        created_at: new Date().toISOString(),
+        read_at: null,
+      };
+      db.notifications.set(notifId, fallbackNotif);
+      return res.json({ success: true, notification: fallbackNotif });
+    } catch (e: any) {
+      return res.status(500).json({ success: false, error: e?.message || 'Server error' });
+    }
+  });
+
   api.get('/my/apartados', authenticateToken, async (req, res) => {
     const user = (req as any).user as User;
     const allApartados = Array.from(db.apartados.values());

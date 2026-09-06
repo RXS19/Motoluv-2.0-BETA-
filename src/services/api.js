@@ -915,6 +915,15 @@ export const apartadoApi = {
                 certification_status: a.certification_status || 'PENDIENTE',
               };
             });
+
+            // Asynchronously sync operational notifications for completed stages
+            try {
+              notificationApi.syncOperations(mappedApartados);
+            } catch (syncErr) {
+              console.warn('Error syncing operation notifications:', syncErr);
+            }
+
+            return mappedApartados;
           }
         }
       } catch (err) {
@@ -1147,6 +1156,15 @@ export const apartadoApi = {
                 certification_status: a.certification_status || 'PENDIENTE',
               };
             });
+
+            // Asynchronously sync operational notifications for completed stages
+            try {
+              notificationApi.syncOperations(mappedReceived);
+            } catch (syncErr) {
+              console.warn('Error syncing operation notifications for received:', syncErr);
+            }
+
+            return mappedReceived;
           }
         }
       } catch (err) {
@@ -1689,6 +1707,91 @@ export const partnerApi = {
   apply: (data) => api.post('/partners', data).then((r) => r.data),
 };
 
+// 5 Operation Notifications Definitions
+export const OPERATION_NOTIFICATION_DEFINITIONS = {
+  CONTRATO_FIRMADO: {
+    type: 'CONTRATO_FIRMADO',
+    title: 'Tu contrato está firmado',
+    body: 'Tu contrato ha sido firmado correctamente.',
+  },
+  PAGO_CONFIRMADO: {
+    type: 'PAGO_CONFIRMADO',
+    title: 'Pago confirmado',
+    body: 'Tu pago fue confirmado. El dinero está en custodia.',
+  },
+  OPERACION_AUTORIZADA: {
+    type: 'OPERACION_AUTORIZADA',
+    title: 'Operación autorizada',
+    body: 'Tu operación ha sido autorizada correctamente.',
+  },
+  TRANSFERENCIA_COMPLETADA: {
+    type: 'TRANSFERENCIA_COMPLETADA',
+    title: 'Transferencia completada',
+    body: 'La transferencia de tu motocicleta se completó correctamente.',
+  },
+  ENTREGA_COMPLETADA: {
+    type: 'ENTREGA_COMPLETADA',
+    title: '¡Tu motocicleta está contigo!',
+    body: 'La entrega se completó correctamente. ¡Felicidades por tu nueva motocicleta!',
+  },
+};
+
+// Memory cache to prevent duplicate notification triggers within the session
+const inMemoryNotifiedKeys = new Set();
+const nidToUuidProfileCache = new Map();
+
+async function resolveBuyerUuid(rawBuyerId, apartadoId, nod) {
+  if (!rawBuyerId && !apartadoId && !nod) return null;
+
+  // 1. If rawBuyerId is already a valid UUID
+  if (typeof rawBuyerId === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(rawBuyerId.trim())) {
+    return rawBuyerId.trim();
+  }
+
+  // 2. If rawBuyerId is an NID like MTL-000031
+  if (typeof rawBuyerId === 'string' && rawBuyerId.startsWith('MTL-')) {
+    if (nidToUuidProfileCache.has(rawBuyerId)) {
+      return nidToUuidProfileCache.get(rawBuyerId);
+    }
+    if (isSupabaseConfigured && supabase) {
+      try {
+        const { data: prof } = await supabase
+          .from('profiles')
+          .select('id')
+          .eq('nid', rawBuyerId)
+          .single();
+        if (prof?.id) {
+          nidToUuidProfileCache.set(rawBuyerId, prof.id);
+          return prof.id;
+        }
+      } catch (err) {
+        // continue
+      }
+    }
+  }
+
+  // 3. Fallback: look up in apartados table by apartadoId or nod
+  if (isSupabaseConfigured && supabase && (apartadoId || nod)) {
+    try {
+      let query = supabase.from('apartados').select('buyer_id');
+      if (apartadoId) {
+        query = query.eq('id', apartadoId);
+      } else if (nod) {
+        query = query.eq('nod', nod);
+      }
+      const { data: apt } = await query.single();
+      if (apt?.buyer_id && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(apt.buyer_id)) {
+        if (rawBuyerId) nidToUuidProfileCache.set(rawBuyerId, apt.buyer_id);
+        return apt.buyer_id;
+      }
+    } catch (err) {
+      // ignore
+    }
+  }
+
+  return null;
+}
+
 export const notificationApi = {
   getUnread: async () => {
     if (isSupabaseConfigured && supabase) {
@@ -1772,6 +1875,236 @@ export const notificationApi = {
       }
     }
     return false;
+  },
+
+  /**
+   * Sends one of the 5 operation notifications if not already sent.
+   * Strictly prevents duplicate notifications for the same operation event.
+   */
+  sendOperationNotification: async ({ type, recipientId, motoId, apartadoId, nod }) => {
+    if (!recipientId || !type || !OPERATION_NOTIFICATION_DEFINITIONS[type]) return null;
+
+    // In-memory deduplication check
+    const dedupKey = `${recipientId}:${type}:${apartadoId || motoId || nod || 'default'}`;
+    if (inMemoryNotifiedKeys.has(dedupKey)) {
+      return null;
+    }
+
+    const notifDef = OPERATION_NOTIFICATION_DEFINITIONS[type];
+
+    // Check if notification already exists in Supabase
+    if (isSupabaseConfigured && supabase) {
+      try {
+        let query = supabase
+          .from('notifications')
+          .select('id')
+          .eq('recipient_id', recipientId)
+          .eq('type', type);
+
+        if (apartadoId) {
+          query = query.eq('apartado_id', String(apartadoId));
+        } else if (motoId) {
+          query = query.eq('moto_id', String(motoId));
+        }
+
+        const { data: existing, error: qErr } = await query.limit(1);
+        if (!qErr && Array.isArray(existing) && existing.length > 0) {
+          inMemoryNotifiedKeys.add(dedupKey);
+          return null;
+        }
+      } catch (checkErr) {
+        console.warn('Error checking existing notification in Supabase:', checkErr);
+      }
+    }
+
+    // Mark as handled in-memory
+    inMemoryNotifiedKeys.add(dedupKey);
+
+    const payload = {
+      recipient_id: recipientId,
+      type: notifDef.type,
+      title: notifDef.title,
+      body: notifDef.body,
+      moto_id: motoId ? String(motoId) : null,
+      apartado_id: apartadoId ? String(apartadoId) : null,
+    };
+
+    let inserted = null;
+
+    // 1. Direct Supabase insert
+    if (isSupabaseConfigured && supabase) {
+      try {
+        const { data, error } = await supabase
+          .from('notifications')
+          .insert([payload])
+          .select('*')
+          .single();
+
+        if (!error && data) {
+          inserted = data;
+        }
+      } catch (err) {
+        // In case RLS policy restricts client insert
+      }
+    }
+
+    // 2. Server API fallback (service role) to guarantee insertion
+    try {
+      const res = await api.post('/operations/notify', payload);
+      if (!inserted && res?.data?.notification) {
+        inserted = res.data.notification;
+      }
+    } catch (apiErr) {
+      // Ignored
+    }
+
+    return inserted;
+  },
+
+  /**
+   * Evaluates operations and automatically emits the 5 operation notifications
+   * for any stages that have been completed, with zero duplicates.
+   */
+  syncOperations: async (operations) => {
+    if (!operations) return;
+    const opsList = Array.isArray(operations) ? operations : [operations];
+    if (opsList.length === 0) return;
+
+    for (const op of opsList) {
+      try {
+        const item = op.item || op;
+        const nod = item.nod || item.apartado?.nod || item.contract?.nod || item.tracking?.nod || null;
+        const apartadoId = item.id || item.apartado_id || item.apartado?.id || null;
+        const motoId = item.moto_id || item.moto?.id || null;
+
+        const rawBuyerId = item.buyer_id || item.apartado?.buyer_id || item.contract?.buyer_id || item.tracking?.buyer_id || null;
+        const buyerUuid = await resolveBuyerUuid(rawBuyerId, apartadoId, nod);
+        if (!buyerUuid) continue;
+
+        const contract = item.contract || null;
+        const tracking = item.tracking || item.operation_tracking || null;
+
+        const rawContractStatus = String(
+          contract?.contract_status || item.contract_status || ''
+        ).toUpperCase().trim();
+
+        const isContractCompleted =
+          op.isContractCompleted !== undefined
+            ? Boolean(op.isContractCompleted)
+            : (rawContractStatus === 'FIRMADO' || rawContractStatus === 'COMPLETADO' || rawContractStatus === 'SIGNED');
+
+        if (isContractCompleted) {
+          // 1. CONTRATO_FIRMADO
+          await notificationApi.sendOperationNotification({
+            type: 'CONTRATO_FIRMADO',
+            recipientId: buyerUuid,
+            motoId,
+            apartadoId,
+            nod,
+          });
+
+          // Once contract is signed, stages 3-6 depend on operation_tracking
+          const rawPaymentStatus = String(
+            tracking?.payment_status || item.payment_status || ''
+          ).toUpperCase().trim();
+
+          const isPagoCompleted =
+            op.isPagoCompleted !== undefined
+              ? Boolean(op.isPagoCompleted)
+              : (rawPaymentStatus === 'COMPLETADO' ||
+                 rawPaymentStatus === 'COMPLETADA' ||
+                 rawPaymentStatus === 'PAGADO' ||
+                 rawPaymentStatus === 'PAGADA' ||
+                 rawPaymentStatus === 'EN_CUSTODIA');
+
+          if (isPagoCompleted) {
+            // 2. PAGO_CONFIRMADO
+            await notificationApi.sendOperationNotification({
+              type: 'PAGO_CONFIRMADO',
+              recipientId: buyerUuid,
+              motoId,
+              apartadoId,
+              nod,
+            });
+          }
+
+          const rawAuthStatus = String(
+            tracking?.authorization_status || tracking?.auth_status || item.authorization_status || item.auth_status || ''
+          ).toUpperCase().trim();
+
+          const isAuthCompleted =
+            op.isAuthCompleted !== undefined
+              ? Boolean(op.isAuthCompleted)
+              : (rawAuthStatus === 'COMPLETADO' ||
+                 rawAuthStatus === 'COMPLETADA' ||
+                 rawAuthStatus === 'AUTORIZADO' ||
+                 rawAuthStatus === 'AUTORIZADA' ||
+                 rawAuthStatus === 'APROBADO' ||
+                 rawAuthStatus === 'APROBADA' ||
+                 rawAuthStatus === 'APPROVED');
+
+          if (isAuthCompleted) {
+            // 3. OPERACION_AUTORIZADA
+            await notificationApi.sendOperationNotification({
+              type: 'OPERACION_AUTORIZADA',
+              recipientId: buyerUuid,
+              motoId,
+              apartadoId,
+              nod,
+            });
+          }
+
+          const rawTransferStatus = String(
+            tracking?.transfer_status || item.transfer_status || ''
+          ).toUpperCase().trim();
+
+          const isTransferCompleted =
+            op.isTransferCompleted !== undefined
+              ? Boolean(op.isTransferCompleted)
+              : (rawTransferStatus === 'COMPLETADO' ||
+                 rawTransferStatus === 'COMPLETADA' ||
+                 rawTransferStatus === 'TRANSFERIDO' ||
+                 rawTransferStatus === 'TRANSFERIDA');
+
+          if (isTransferCompleted) {
+            // 4. TRANSFERENCIA_COMPLETADA
+            await notificationApi.sendOperationNotification({
+              type: 'TRANSFERENCIA_COMPLETADA',
+              recipientId: buyerUuid,
+              motoId,
+              apartadoId,
+              nod,
+            });
+          }
+
+          const rawDeliveryStatus = String(
+            tracking?.delivery_status || item.delivery_status || ''
+          ).toUpperCase().trim();
+
+          const isDeliveryCompleted =
+            op.isDeliveryCompleted !== undefined
+              ? Boolean(op.isDeliveryCompleted)
+              : (rawDeliveryStatus === 'COMPLETADO' ||
+                 rawDeliveryStatus === 'COMPLETADA' ||
+                 rawDeliveryStatus === 'ENTREGADO' ||
+                 rawDeliveryStatus === 'ENTREGADA' ||
+                 rawDeliveryStatus === 'DELIVERED');
+
+          if (isDeliveryCompleted) {
+            // 5. ENTREGA_COMPLETADA
+            await notificationApi.sendOperationNotification({
+              type: 'ENTREGA_COMPLETADA',
+              recipientId: buyerUuid,
+              motoId,
+              apartadoId,
+              nod,
+            });
+          }
+        }
+      } catch (itemErr) {
+        console.warn('Error evaluating operation for notifications:', itemErr);
+      }
+    }
   },
 };
 

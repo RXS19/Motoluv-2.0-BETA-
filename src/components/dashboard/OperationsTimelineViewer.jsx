@@ -20,7 +20,7 @@ import {
 } from 'lucide-react';
 import { resolveSafeImageUrl } from '../../utils/imageFallback';
 import { handleMotoLinkClick } from '../../utils/motoNavigation';
-import { motoApi } from '../../services/api';
+import { motoApi, notificationApi } from '../../services/api';
 import { supabase, isSupabaseConfigured } from '../../lib/supabase';
 
 /**
@@ -609,8 +609,44 @@ const OperationsTimelineViewer = ({
       }
     })();
 
+    // Supabase Realtime subscription to live contract and tracking updates
+    let realtimeChannel = null;
+    try {
+      const channelId = `ops_live_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
+      realtimeChannel = supabase
+        .channel(channelId)
+        .on(
+          'postgres_changes',
+          { event: '*', schema: 'public', table: 'contracts' },
+          (payload) => {
+            const row = payload.new || payload.old;
+            if (row?.nod && nodsToQuery.includes(row.nod) && isMounted) {
+              setExtraContracts((prev) => ({ ...prev, [row.nod]: payload.new }));
+            }
+          }
+        )
+        .on(
+          'postgres_changes',
+          { event: '*', schema: 'public', table: 'operation_tracking' },
+          (payload) => {
+            const row = payload.new || payload.old;
+            if (row?.nod && nodsToQuery.includes(row.nod) && isMounted) {
+              setExtraTracking((prev) => ({ ...prev, [row.nod]: payload.new }));
+            }
+          }
+        )
+        .subscribe();
+    } catch (subErr) {
+      console.warn('Realtime subscription error in OperationsTimelineViewer:', subErr);
+    }
+
     return () => {
       isMounted = false;
+      if (realtimeChannel) {
+        try {
+          supabase.removeChannel(realtimeChannel);
+        } catch {}
+      }
     };
   }, [items]);
 
@@ -660,6 +696,13 @@ const OperationsTimelineViewer = ({
       })
       .filter(Boolean);
   }, [items, extraContracts, extraTracking]);
+
+  // Synchronize operation notifications whenever processedItems updates
+  useEffect(() => {
+    if (Array.isArray(processedItems) && processedItems.length > 0) {
+      notificationApi.syncOperations(processedItems);
+    }
+  }, [processedItems]);
 
   // Keep selectedOperation up to date with processedItems when extraTracking/extraContracts updates
   const activeSelectedOperation = useMemo(() => {
