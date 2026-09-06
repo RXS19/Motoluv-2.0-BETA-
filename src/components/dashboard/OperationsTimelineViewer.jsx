@@ -21,6 +21,7 @@ import {
 import { resolveSafeImageUrl } from '../../utils/imageFallback';
 import { handleMotoLinkClick } from '../../utils/motoNavigation';
 import { motoApi } from '../../services/api';
+import { supabase, isSupabaseConfigured } from '../../lib/supabase';
 
 /**
  * Extracts the primary image exclusively from a motorcycle record.
@@ -81,6 +82,28 @@ export const TIMELINE_STAGES = [
 export const resolveOperationTimeline = (item) => {
   if (!item) return null;
 
+  // El NOD es el identificador principal de la operación. Nace con el apartado.
+  // 1 NOD = 1 operación = 1 contrato.
+  // NO generes NOD en frontend. NO uses item.id, folio o moto_id como sustituto.
+  // Si falta un NOD válido, conserva el error o null sin inventar.
+  const nod = item.nod || item.apartado?.nod || item.raw?.nod || null;
+
+  // Acceso inequívoco a las entidades clave de la operación
+  const apartado = item.apartado || item.raw?.apartado || item;
+  const contract =
+    item.contract ||
+    (Array.isArray(item.contracts) ? item.contracts[0] : item.contracts) ||
+    item.raw?.contract ||
+    (Array.isArray(item.raw?.contracts) ? item.raw.contracts[0] : item.raw?.contracts) ||
+    null;
+  const tracking =
+    item.tracking ||
+    item.operation_tracking ||
+    item.raw?.tracking ||
+    item.raw?.operation_tracking ||
+    null;
+
+  // Certification status (NO MODIFICAR la lógica APROBADA/CERTIFICADA)
   const rawCertStatus = String(
     item.certification_status ||
     item.moto?.certification_status ||
@@ -91,80 +114,39 @@ export const resolveOperationTimeline = (item) => {
   const isRejected = rawCertStatus === 'RECHAZADA' || rawCertStatus === 'NO_APROBADA';
 
   const rawAppStatus = String(item.certification_appointment_status || '').toUpperCase();
-  const rawItemStatus = String(item.status || '').toUpperCase();
-  const rawContractStatus = String(item.contract_status || '').toUpperCase();
-  const rawPaymentStatus = String(item.payment_status || '').toUpperCase();
-  const rawAuthStatus = String(item.authorization_status || item.auth_status || '').toUpperCase();
-  const rawTransferStatus = String(item.transfer_status || '').toUpperCase();
-  const rawDeliveryStatus = String(item.delivery_status || '').toUpperCase();
 
-  // 1. Stage: Apartado
-  // The apartado record exists in database -> completed
-  const isApartadoCompleted = true;
+  // 1. Etapa: Apartado (fuente de verdad: apartados)
+  const rawItemStatus = String(apartado?.status || item.status || '').toUpperCase().trim();
+  const isApartadoCompleted =
+    !isRejected &&
+    rawItemStatus !== 'CANCELADO' &&
+    rawItemStatus !== 'CANCELADA' &&
+    rawItemStatus !== 'EXPIRADO' &&
+    rawItemStatus !== 'EXPIRADA';
+  const apartadoSubstatus = isRejected
+    ? 'Rechazada'
+    : rawItemStatus === 'CANCELADO' || rawItemStatus === 'CANCELADA'
+    ? 'Cancelado'
+    : rawItemStatus === 'EXPIRADO' || rawItemStatus === 'EXPIRADA'
+    ? 'Expirado'
+    : 'Confirmado';
 
-  // 6. Stage: Entrega
-  const isDeliveryCompleted =
-    !isRejected && (
-      rawDeliveryStatus === 'COMPLETADO' ||
-      rawDeliveryStatus === 'ENTREGADO' ||
-      rawDeliveryStatus === 'DELIVERED' ||
-      rawItemStatus === 'ENTREGADO' ||
-      Boolean(item.delivered_at) ||
-      (rawItemStatus === 'COMPLETADO' && (rawTransferStatus === 'COMPLETADO' || Boolean(item.transferred_at)))
-    );
+  // 2. Etapa: Contrato (fuente de verdad: contracts.contract_status)
+  const rawContractStatus = String(
+    contract?.contract_status ||
+    item.contract_status ||
+    ''
+  ).toUpperCase().trim();
 
-  // 5. Stage: Transferencia
-  const isTransferCompleted =
-    !isRejected && (
-      isDeliveryCompleted ||
-      rawTransferStatus === 'COMPLETADO' ||
-      rawTransferStatus === 'TRANSFERIDO' ||
-      Boolean(item.transferred_at) ||
-      Boolean(item.transfer_completed_at)
-    );
-
-  // 4. Stage: Autorización
-  const isAuthCompleted =
-    !isRejected && (
-      isTransferCompleted ||
-      isDeliveryCompleted ||
-      rawAuthStatus === 'COMPLETADO' ||
-      rawAuthStatus === 'AUTORIZADO' ||
-      rawAuthStatus === 'APPROVED' ||
-      Boolean(item.authorized_at) ||
-      Boolean(item.authorization_completed_at)
-    );
-
-  // 3. Stage: Pago (Vehicle full payment in escrow / custody - DO NOT use item.paid_at of $600 apartado!)
-  const isPagoCompleted =
-    !isRejected && (
-      isAuthCompleted ||
-      isTransferCompleted ||
-      isDeliveryCompleted ||
-      rawPaymentStatus === 'COMPLETADO' ||
-      rawPaymentStatus === 'PAGADO' ||
-      rawPaymentStatus === 'EN_CUSTODIA' ||
-      Boolean(item.vehicle_paid_at) ||
-      Boolean(item.full_payment_at) ||
-      Boolean(item.paid_full_at) ||
-      Boolean(item.custody_paid_at)
-    );
-
-  // 2. Stage: Contrato
+  // CUANDO contracts.contract_status = FIRMADO:
+  // Contrato debe quedar COMPLETADO (✓ Contrato — Firmado)
   const isContractCompleted =
-    !isRejected && (
-      isPagoCompleted ||
-      isAuthCompleted ||
-      isTransferCompleted ||
-      isDeliveryCompleted ||
+    !isRejected &&
+    (rawContractStatus === 'FIRMADO' ||
       rawContractStatus === 'COMPLETADO' ||
-      rawContractStatus === 'FIRMADO' ||
-      rawContractStatus === 'SIGNED' ||
-      Boolean(item.contract_signed_at) ||
-      Boolean(item.contract_completed_at)
-    );
+      rawContractStatus === 'SIGNED');
 
-  // In-progress flags for each stage (when rejected, no downstream step is active or in progress)
+  // Mientras el contrato no esté FIRMADO, conserva la lógica necesaria para representar Apartado y Contrato
   const isContractInProgress =
     !isRejected &&
     !isContractCompleted &&
@@ -174,82 +156,197 @@ export const resolveOperationTimeline = (item) => {
       rawCertStatus === 'CERTIFICADA' ||
       rawCertStatus === 'APROBADA');
 
+  // 3-6. Etapas: Pago, Autorización, Transferencia, Entrega
+  // CUANDO contracts.contract_status = FIRMADO:
+  // - El Dashboard debe dejar de inferir las etapas posteriores desde contracts, apartados, fechas o campos legacy.
+  // - Desde ese punto, Pago, Autorización, Transferencia y Entrega deben depender EXCLUSIVAMENTE de operation_tracking.
+  // - NO usar ningún fallback que convierta automáticamente el contrato FIRMADO en “Pago en proceso”.
+  // - “Pago en proceso” únicamente puede mostrarse si operation_tracking.payment_status realmente indica EN_PROCESO.
+  // - Si operation_tracking no está disponible: NO asumir Pago en proceso. NO inventar estados. Mantener estado seguro/indeterminado ('pending').
+  const rawPaymentStatus = String(
+    tracking?.payment_status ||
+    item.payment_status ||
+    ''
+  ).toUpperCase().trim();
+
+  const rawAuthStatus = String(
+    tracking?.authorization_status ||
+    tracking?.auth_status ||
+    item.authorization_status ||
+    item.auth_status ||
+    ''
+  ).toUpperCase().trim();
+
+  const rawTransferStatus = String(
+    tracking?.transfer_status ||
+    item.transfer_status ||
+    ''
+  ).toUpperCase().trim();
+
+  const rawDeliveryStatus = String(
+    tracking?.delivery_status ||
+    item.delivery_status ||
+    ''
+  ).toUpperCase().trim();
+
+  // 3. Etapa: Pago (fuente: operation_tracking.payment_status)
+  const isPagoCompleted =
+    !isRejected &&
+    isContractCompleted &&
+    (rawPaymentStatus === 'COMPLETADO' ||
+      rawPaymentStatus === 'PAGADO' ||
+      rawPaymentStatus === 'EN_CUSTODIA');
+
   const isPagoInProgress =
     !isRejected &&
+    isContractCompleted &&
     !isPagoCompleted &&
-    (rawPaymentStatus === 'EN_PROCESO' ||
-      rawPaymentStatus === 'PENDIENTE_PAGO' ||
-      (isContractCompleted && !isPagoCompleted));
+    rawPaymentStatus === 'EN_PROCESO';
+
+  // 4. Etapa: Autorización (fuente: operation_tracking.authorization_status)
+  const isAuthCompleted =
+    !isRejected &&
+    isContractCompleted &&
+    (rawAuthStatus === 'COMPLETADO' ||
+      rawAuthStatus === 'AUTORIZADO' ||
+      rawAuthStatus === 'APROBADO' ||
+      rawAuthStatus === 'APPROVED');
 
   const isAuthInProgress =
     !isRejected &&
+    isContractCompleted &&
     !isAuthCompleted &&
-    (rawAuthStatus === 'EN_PROCESO' ||
-      rawAuthStatus === 'EN_REVISION' ||
-      (isPagoCompleted && !isAuthCompleted));
+    (rawAuthStatus === 'EN_PROCESO' || rawAuthStatus === 'EN_REVISION');
+
+  // 5. Etapa: Transferencia (fuente: operation_tracking.transfer_status)
+  const isTransferCompleted =
+    !isRejected &&
+    isContractCompleted &&
+    (rawTransferStatus === 'COMPLETADO' ||
+      rawTransferStatus === 'TRANSFERIDO');
 
   const isTransferInProgress =
     !isRejected &&
+    isContractCompleted &&
     !isTransferCompleted &&
-    (rawTransferStatus === 'EN_PROCESO' ||
-      (isAuthCompleted && !isTransferCompleted));
+    rawTransferStatus === 'EN_PROCESO';
+
+  // 6. Etapa: Entrega (fuente: operation_tracking.delivery_status)
+  const isDeliveryCompleted =
+    !isRejected &&
+    isContractCompleted &&
+    (rawDeliveryStatus === 'COMPLETADO' ||
+      rawDeliveryStatus === 'ENTREGADO' ||
+      rawDeliveryStatus === 'ENTREGADA' ||
+      rawDeliveryStatus === 'DELIVERED');
 
   const isDeliveryInProgress =
     !isRejected &&
+    isContractCompleted &&
     !isDeliveryCompleted &&
-    (rawDeliveryStatus === 'EN_PROCESO' ||
-      (isTransferCompleted && !isDeliveryCompleted));
+    rawDeliveryStatus === 'EN_PROCESO';
 
-  // Build the 6 step status objects (strictly NO dates or hours)
-  // When certification_status = 'RECHAZADA':
-  // Step 1: "Motocicleta Rechazada" (status: rejected)
-  // Steps 2-6 (Contrato, Pago, Autorización, Transferencia, Entrega): "NA" (status: na, not pending active)
+  // Construcción de las 6 etapas (estrictamente SIN fechas ni horas)
   const steps = [
     {
       id: 'apartado',
       label: isRejected ? 'Motocicleta Rechazada' : 'Apartado',
-      status: isRejected ? 'rejected' : 'completed',
-      substatus: isRejected
-        ? 'Rechazada'
-        : rawItemStatus === 'CANCELADO'
-        ? 'Cancelado'
-        : rawItemStatus === 'EXPIRADO'
-        ? 'Expirado'
-        : 'Confirmado',
+      status: isRejected ? 'rejected' : isApartadoCompleted ? 'completed' : 'pending',
+      substatus: apartadoSubstatus,
     },
     {
       id: 'contrato',
       label: 'Contrato',
-      status: isRejected ? 'na' : (isContractCompleted ? 'completed' : isContractInProgress ? 'in_progress' : 'pending'),
-      substatus: isRejected ? 'NA' : (isContractCompleted ? 'Firmado' : isContractInProgress ? 'En proceso' : 'Pendiente'),
+      status: isRejected
+        ? 'na'
+        : isContractCompleted
+        ? 'completed'
+        : isContractInProgress
+        ? 'in_progress'
+        : 'pending',
+      substatus: isRejected
+        ? 'NA'
+        : isContractCompleted
+        ? 'Firmado'
+        : isContractInProgress
+        ? 'En proceso'
+        : 'Pendiente',
     },
     {
       id: 'pago',
       label: 'Pago',
-      status: isRejected ? 'na' : (isPagoCompleted ? 'completed' : isPagoInProgress ? 'in_progress' : 'pending'),
-      substatus: isRejected ? 'NA' : (isPagoCompleted ? 'En custodia' : isPagoInProgress ? 'En proceso' : 'Pendiente'),
+      status: isRejected
+        ? 'na'
+        : isPagoCompleted
+        ? 'completed'
+        : isPagoInProgress
+        ? 'in_progress'
+        : 'pending',
+      substatus: isRejected
+        ? 'NA'
+        : isPagoCompleted
+        ? 'En custodia'
+        : isPagoInProgress
+        ? 'En proceso'
+        : 'Pendiente',
     },
     {
       id: 'autorizacion',
       label: 'Autorización',
-      status: isRejected ? 'na' : (isAuthCompleted ? 'completed' : isAuthInProgress ? 'in_progress' : 'pending'),
-      substatus: isRejected ? 'NA' : (isAuthCompleted ? 'Autorizado' : isAuthInProgress ? 'En revisión' : 'Pendiente'),
+      status: isRejected
+        ? 'na'
+        : isAuthCompleted
+        ? 'completed'
+        : isAuthInProgress
+        ? 'in_progress'
+        : 'pending',
+      substatus: isRejected
+        ? 'NA'
+        : isAuthCompleted
+        ? 'Autorizado'
+        : isAuthInProgress
+        ? 'En revisión'
+        : 'Pendiente',
     },
     {
       id: 'transferencia',
       label: 'Transferencia',
-      status: isRejected ? 'na' : (isTransferCompleted ? 'completed' : isTransferInProgress ? 'in_progress' : 'pending'),
-      substatus: isRejected ? 'NA' : (isTransferCompleted ? 'Transferido' : isTransferInProgress ? 'En proceso' : 'Pendiente'),
+      status: isRejected
+        ? 'na'
+        : isTransferCompleted
+        ? 'completed'
+        : isTransferInProgress
+        ? 'in_progress'
+        : 'pending',
+      substatus: isRejected
+        ? 'NA'
+        : isTransferCompleted
+        ? 'Transferido'
+        : isTransferInProgress
+        ? 'En proceso'
+        : 'Pendiente',
     },
     {
       id: 'entrega',
       label: 'Entrega',
-      status: isRejected ? 'na' : (isDeliveryCompleted ? 'completed' : isDeliveryInProgress ? 'in_progress' : 'pending'),
-      substatus: isRejected ? 'NA' : (isDeliveryCompleted ? 'Entregada' : isDeliveryInProgress ? 'En proceso' : 'Pendiente'),
+      status: isRejected
+        ? 'na'
+        : isDeliveryCompleted
+        ? 'completed'
+        : isDeliveryInProgress
+        ? 'in_progress'
+        : 'pending',
+      substatus: isRejected
+        ? 'NA'
+        : isDeliveryCompleted
+        ? 'Entregada'
+        : isDeliveryInProgress
+        ? 'En proceso'
+        : 'Pendiente',
     },
   ];
 
-  // Determine current active stage key for filter & badge
+  // Determinar la etapa activa actual para filtro y badge
   let activeStageKey = 'apartado';
   let badgeLabel = 'Apartado';
   let badgeColor = 'amber';
@@ -266,18 +363,34 @@ export const resolveOperationTimeline = (item) => {
     activeStageKey = 'entrega';
     badgeLabel = 'Entrega';
     badgeColor = 'blue';
-  } else if (isTransferInProgress || (isAuthCompleted && !isTransferCompleted)) {
+  } else if (isTransferCompleted) {
+    activeStageKey = 'transferencia';
+    badgeLabel = 'Transferido';
+    badgeColor = 'emerald';
+  } else if (isTransferInProgress) {
     activeStageKey = 'transferencia';
     badgeLabel = 'Transferencia';
     badgeColor = 'blue';
-  } else if (isAuthInProgress || (isPagoCompleted && !isAuthCompleted)) {
+  } else if (isAuthCompleted) {
+    activeStageKey = 'autorizacion';
+    badgeLabel = 'Autorizado';
+    badgeColor = 'emerald';
+  } else if (isAuthInProgress) {
     activeStageKey = 'autorizacion';
     badgeLabel = 'Autorización';
     badgeColor = 'blue';
-  } else if (isPagoInProgress || (isContractCompleted && !isPagoCompleted)) {
+  } else if (isPagoCompleted) {
+    activeStageKey = 'pago';
+    badgeLabel = 'En custodia';
+    badgeColor = 'emerald';
+  } else if (isPagoInProgress) {
     activeStageKey = 'pago';
     badgeLabel = 'Pago';
     badgeColor = 'blue';
+  } else if (isContractCompleted) {
+    activeStageKey = 'contrato';
+    badgeLabel = 'Contrato';
+    badgeColor = 'emerald';
   } else if (isContractInProgress) {
     activeStageKey = 'contrato';
     badgeLabel = 'Contrato';
@@ -287,12 +400,6 @@ export const resolveOperationTimeline = (item) => {
     badgeLabel = 'Apartado';
     badgeColor = 'amber';
   }
-
-  // Real NOD taken from apartados.nod (fallback formatted cleanly if missing)
-  const nod =
-    item.nod ||
-    item.folio ||
-    (item.id ? `NOD-${String(item.id).replace(/\D/g, '').slice(0, 6).padStart(6, '0')}` : 'NOD-000100');
 
   // Format buyer initials
   const getInitials = (name) => {
@@ -352,6 +459,9 @@ export const resolveOperationTimeline = (item) => {
     raw: item,
     id: item.id,
     nod,
+    apartado,
+    contract,
+    tracking,
     moto_id: motoId,
     brand: item.moto_brand || motoObj?.brand || 'Motocicleta',
     model: item.moto_model || motoObj?.model || '',
@@ -434,11 +544,90 @@ const OperationsTimelineViewer = ({
 
   const isSeller = mode === 'vendedor';
 
-  // Process all items with timeline resolver
+  // 1 NOD = 1 operación = 1 contrato
+  // Extra storage for contracts and operation_tracking queried strictly by NOD if not pre-populated
+  const [extraContracts, setExtraContracts] = useState({});
+  const [extraTracking, setExtraTracking] = useState({});
+
+  useEffect(() => {
+    if (!isSupabaseConfigured || !supabase || !Array.isArray(items) || items.length === 0) return;
+
+    // Collect valid NODs strictly (never use item.id or moto_id)
+    const nodsToQuery = [
+      ...new Set(
+        items
+          .map((it) => it?.nod || it?.apartado?.nod || it?.raw?.nod)
+          .filter(Boolean)
+      ),
+    ];
+
+    if (nodsToQuery.length === 0) return;
+
+    let isMounted = true;
+
+    (async () => {
+      try {
+        const { data: cData } = await supabase
+          .from('contracts')
+          .select('*')
+          .in('nod', nodsToQuery);
+        if (isMounted && Array.isArray(cData)) {
+          const map = {};
+          cData.forEach((c) => {
+            if (c.nod) map[c.nod] = c;
+          });
+          setExtraContracts((prev) => ({ ...prev, ...map }));
+        }
+      } catch (err) {
+        // Safe fallback
+      }
+
+      try {
+        const { data: tData } = await supabase
+          .from('operation_tracking')
+          .select('*')
+          .in('nod', nodsToQuery);
+        if (isMounted && Array.isArray(tData)) {
+          const map = {};
+          tData.forEach((t) => {
+            if (t.nod) map[t.nod] = t;
+          });
+          setExtraTracking((prev) => ({ ...prev, ...map }));
+        }
+      } catch (err) {
+        // Safe fallback
+      }
+    })();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [items]);
+
+  // Process all items with timeline resolver, merging any extra contract or tracking data fetched by NOD
   const processedItems = useMemo(() => {
     if (!Array.isArray(items)) return [];
-    return items.map(resolveOperationTimeline).filter(Boolean);
-  }, [items]);
+    return items
+      .map((item) => {
+        const itemNod = item?.nod || item?.apartado?.nod || item?.raw?.nod || null;
+        const contract = item?.contract || (itemNod ? extraContracts[itemNod] : null) || null;
+        const tracking = item?.tracking || item?.operation_tracking || (itemNod ? extraTracking[itemNod] : null) || null;
+        const mergedItem = {
+          ...item,
+          nod: itemNod,
+          apartado: item?.apartado || item,
+          contract,
+          tracking,
+          contract_status: contract?.contract_status || item?.contract_status || null,
+          payment_status: tracking?.payment_status || item?.payment_status || null,
+          authorization_status: tracking?.authorization_status || tracking?.auth_status || item?.authorization_status || null,
+          transfer_status: tracking?.transfer_status || item?.transfer_status || null,
+          delivery_status: tracking?.delivery_status || item?.delivery_status || null,
+        };
+        return resolveOperationTimeline(mergedItem);
+      })
+      .filter(Boolean);
+  }, [items, extraContracts, extraTracking]);
 
   // Dynamic counts for filter pills (6 stages + todas)
   const counts = useMemo(() => {

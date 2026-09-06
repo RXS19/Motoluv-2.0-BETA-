@@ -838,6 +838,41 @@ export const apartadoApi = {
               }
             }
 
+            // 1 NOD = 1 operación = 1 contrato
+            // Query contracts and operation_tracking strictly by NOD (never by moto_id)
+            const validNods = [...new Set(data.map((a) => a.nod).filter(Boolean))];
+            const contractsMap = {};
+            const trackingMap = {};
+            if (validNods.length > 0) {
+              try {
+                const { data: cData } = await supabase
+                  .from('contracts')
+                  .select('*')
+                  .in('nod', validNods);
+                if (Array.isArray(cData)) {
+                  cData.forEach((c) => {
+                    if (c.nod) contractsMap[c.nod] = c;
+                  });
+                }
+              } catch (cErr) {
+                console.warn('Error querying contracts by NOD:', cErr);
+              }
+
+              try {
+                const { data: tData } = await supabase
+                  .from('operation_tracking')
+                  .select('*')
+                  .in('nod', validNods);
+                if (Array.isArray(tData)) {
+                  tData.forEach((t) => {
+                    if (t.nod) trackingMap[t.nod] = t;
+                  });
+                }
+              } catch (tErr) {
+                console.warn('Error querying operation_tracking by NOD:', tErr);
+              }
+            }
+
             return data.map((a) => {
               const rawMoto = a.moto ? (Array.isArray(a.moto) ? a.moto[0] : a.moto) : null;
               const motoObj = rawMoto ? formatMotoRecord(rawMoto) : (fetchedMotosMap[String(a.moto_id)] || null);
@@ -849,10 +884,22 @@ export const apartadoApi = {
                 motoObj?.is_verified
               );
 
+              const itemNod = a.nod || null;
+              const contractObj = itemNod ? (contractsMap[itemNod] || a.contract || null) : (a.contract || null);
+              const trackingObj = itemNod ? (trackingMap[itemNod] || a.tracking || a.operation_tracking || null) : (a.tracking || a.operation_tracking || null);
+
               return {
                 ...a,
                 moto: motoObj || a.moto,
-                nod: a.nod || (a.id ? `NOD-${String(a.id).replace(/\D/g, '').slice(0, 6).padStart(6, '0')}` : 'NOD-000100'),
+                nod: itemNod,
+                apartado: a,
+                contract: contractObj,
+                tracking: trackingObj,
+                contract_status: contractObj?.contract_status || a.contract_status || null,
+                payment_status: trackingObj?.payment_status || a.payment_status || null,
+                authorization_status: trackingObj?.authorization_status || trackingObj?.auth_status || a.authorization_status || null,
+                transfer_status: trackingObj?.transfer_status || a.transfer_status || null,
+                delivery_status: trackingObj?.delivery_status || a.delivery_status || null,
                 moto_brand: a.moto_brand || motoObj?.brand,
                 moto_model: a.moto_model || motoObj?.model,
                 moto_year: a.moto_year || motoObj?.year,
@@ -1033,11 +1080,58 @@ export const apartadoApi = {
               }
             }
 
+            // 1 NOD = 1 operación = 1 contrato
+            // Query contracts and operation_tracking strictly by NOD (never by moto_id)
+            const validReceivedNods = [...new Set(filtered.map((a) => a.nod).filter(Boolean))];
+            const contractsMap = {};
+            const trackingMap = {};
+            if (validReceivedNods.length > 0) {
+              try {
+                const { data: cData } = await supabase
+                  .from('contracts')
+                  .select('*')
+                  .in('nod', validReceivedNods);
+                if (Array.isArray(cData)) {
+                  cData.forEach((c) => {
+                    if (c.nod) contractsMap[c.nod] = c;
+                  });
+                }
+              } catch (cErr) {
+                console.warn('Error querying contracts by NOD for received apartados:', cErr);
+              }
+
+              try {
+                const { data: tData } = await supabase
+                  .from('operation_tracking')
+                  .select('*')
+                  .in('nod', validReceivedNods);
+                if (Array.isArray(tData)) {
+                  tData.forEach((t) => {
+                    if (t.nod) trackingMap[t.nod] = t;
+                  });
+                }
+              } catch (tErr) {
+                console.warn('Error querying operation_tracking by NOD for received apartados:', tErr);
+              }
+            }
+
             return filtered.map((a) => {
               const motoObj = a.moto;
+              const itemNod = a.nod || null;
+              const contractObj = itemNod ? (contractsMap[itemNod] || a.contract || null) : (a.contract || null);
+              const trackingObj = itemNod ? (trackingMap[itemNod] || a.tracking || a.operation_tracking || null) : (a.tracking || a.operation_tracking || null);
+
               return {
                 ...a,
-                nod: a.nod || (a.id ? `NOD-${String(a.id).replace(/\D/g, '').slice(0, 6).padStart(6, '0')}` : 'NOD-000100'),
+                nod: itemNod,
+                apartado: a,
+                contract: contractObj,
+                tracking: trackingObj,
+                contract_status: contractObj?.contract_status || a.contract_status || null,
+                payment_status: trackingObj?.payment_status || a.payment_status || null,
+                authorization_status: trackingObj?.authorization_status || trackingObj?.auth_status || a.authorization_status || null,
+                transfer_status: trackingObj?.transfer_status || a.transfer_status || null,
+                delivery_status: trackingObj?.delivery_status || a.delivery_status || null,
                 moto_brand: a.moto_brand || motoObj?.brand,
                 moto_model: a.moto_model || motoObj?.model,
                 moto_year: a.moto_year || motoObj?.year,
