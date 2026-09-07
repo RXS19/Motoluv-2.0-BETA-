@@ -33,6 +33,7 @@ const MotoDetailPage = () => {
   const [selectedPkg, setSelectedPkg] = useState(null);
   const [offerAmount, setOfferAmount] = useState('');
   const [offerLoading, setOfferLoading] = useState(false);
+  const [userOffer, setUserOffer] = useState(null);
 
   // Apartado state from public.apartados
   const [apartado, setApartado] = useState(null);
@@ -123,6 +124,41 @@ const MotoDetailPage = () => {
       setApartadoLoaded(true);
     }
   }, [user, moto]);
+
+  const loadUserOffer = async () => {
+    if (!user?.id || !moto?.id) {
+      setUserOffer(null);
+      return;
+    }
+    try {
+      const myOffers = await offerApi.mine();
+      if (Array.isArray(myOffers)) {
+        const currentOffer = myOffers.find(
+          (o) => String(o.moto_id || o.moto?.id) === String(moto.id)
+        );
+        setUserOffer(currentOffer || null);
+      } else {
+        setUserOffer(null);
+      }
+    } catch (err) {
+      console.warn('Error fetching user offer for moto:', err);
+      setUserOffer(null);
+    }
+  };
+
+  useEffect(() => {
+    loadUserOffer();
+
+    const handleFocus = () => {
+      loadUserOffer();
+    };
+    window.addEventListener('focus', handleFocus);
+    document.addEventListener('visibilitychange', handleFocus);
+    return () => {
+      window.removeEventListener('focus', handleFocus);
+      document.removeEventListener('visibilitychange', handleFocus);
+    };
+  }, [user?.id, moto?.id]);
 
   useEffect(() => {
     if (!user || !moto?.id || !apartadoLoaded) {
@@ -228,7 +264,7 @@ const MotoDetailPage = () => {
     }
     setOfferLoading(true);
     try {
-      await offerApi.create({
+      const created = await offerApi.create({
         moto_id: moto.id,
         amount: Number(offerAmount) || (moto.price ? Number(moto.price) : 0),
         ...(selectedPkg ? { package: selectedPkg } : { package: null }),
@@ -238,6 +274,10 @@ const MotoDetailPage = () => {
         description: 'Tu oferta ha sido registrada y enviada al vendedor.',
       });
       setOfferAmount('');
+      if (created) {
+        setUserOffer(created);
+      }
+      await loadUserOffer();
     } catch (err) {
       const msg = err?.message || 'El monto ingresado no puede procesarse. Revisa tu oferta e inténtalo nuevamente.';
       toast({ title: 'Oferta no procesada', description: msg });
@@ -245,6 +285,12 @@ const MotoDetailPage = () => {
       setOfferLoading(false);
     }
   };
+
+  const rawOfferStatus = String(userOffer?.status || '').toUpperCase().trim();
+  const isPendingOffer = rawOfferStatus === 'ENVIADA' || rawOfferStatus === 'PENDIENTE' || rawOfferStatus === 'PENDING';
+  const isAcceptedOffer = rawOfferStatus === 'ACEPTADA' || rawOfferStatus === 'ACCEPTED';
+  const isRejectedOffer = rawOfferStatus === 'RECHAZADA' || rawOfferStatus === 'REJECTED';
+  const isExpiredOffer = rawOfferStatus === 'EXPIRADA' || rawOfferStatus === 'EXPIRED';
 
   const hasKm = (moto.km !== null && moto.km !== undefined && moto.km !== '') || (moto.mileage !== null && moto.mileage !== undefined && moto.mileage !== '');
   const kmFormatted = hasKm ? `${Number(moto.km ?? moto.mileage).toLocaleString()} km` : 'No disponible';
@@ -821,107 +867,313 @@ const MotoDetailPage = () => {
             )}
           </div>
 
-          {/* FORMULARIO DE OFERTA (ÚNICAMENTE SI APARTADO REALIZADO Y CERTIFICACIÓN APROBADA) */}
-          {hasApartado && (
-            <div className="bg-[#111112] border border-white/5 rounded-md p-6 relative">
-              <h3 className="font-display font-bold text-white uppercase tracking-wide text-sm mb-4 flex items-center gap-2">
-                <Shield size={16} className="text-red-brand" /> Oferta de Compra
-              </h3>
+          {/* OFERTA DE COMPRA (ESTADOS DINÁMICOS SEGÚN OFERTA REAL) */}
+          {(hasApartado || userOffer) && (
+            <div className="bg-[#111112] border border-white/5 rounded-md p-6 relative space-y-4">
+              {/* Encabezado dinámico */}
+              <div className="flex items-center justify-between pb-3 border-b border-white/5">
+                <h3 className="font-display font-bold text-white uppercase tracking-wide text-sm flex items-center gap-2">
+                  {isAcceptedOffer ? (
+                    <ShieldCheck size={16} className="text-emerald-400" />
+                  ) : isPendingOffer ? (
+                    <Shield size={16} className="text-amber-400" />
+                  ) : isRejectedOffer ? (
+                    <Shield size={16} className="text-red-400" />
+                  ) : isExpiredOffer ? (
+                    <Shield size={16} className="text-zinc-400" />
+                  ) : (
+                    <Shield size={16} className="text-red-brand" />
+                  )}
+                  {isAcceptedOffer
+                    ? 'OFERTA ACEPTADA'
+                    : isPendingOffer
+                    ? 'OFERTA ENVIADA'
+                    : 'Oferta de Compra'}
+                </h3>
+                {isAcceptedOffer && (
+                  <span className="px-2.5 py-1 text-[10px] font-bold rounded-sm uppercase tracking-wider bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                    Aceptada
+                  </span>
+                )}
+                {isPendingOffer && (
+                  <span className="px-2.5 py-1 text-[10px] font-bold rounded-sm uppercase tracking-wider bg-amber-500/10 text-amber-400 border border-amber-500/20">
+                    {rawOfferStatus === 'ENVIADA' ? 'Enviada' : 'Pendiente'}
+                  </span>
+                )}
+                {isRejectedOffer && (
+                  <span className="px-2.5 py-1 text-[10px] font-bold rounded-sm uppercase tracking-wider bg-red-500/10 text-red-400 border border-red-500/20">
+                    Rechazada
+                  </span>
+                )}
+                {isExpiredOffer && (
+                  <span className="px-2.5 py-1 text-[10px] font-bold rounded-sm uppercase tracking-wider bg-zinc-500/10 text-zinc-400 border border-zinc-500/20">
+                    Expirada
+                  </span>
+                )}
+              </div>
 
-              {isCertificationApproved ? (
+              {/* ESTADO 1: ENVIADA / PENDIENTE (Ocultar formulario, mostrar oferta y estado, no permitir otra oferta) */}
+              {isPendingOffer ? (
                 <div className="space-y-4">
-                  <div className="text-xs text-zinc-400 leading-relaxed">
-                    Certificación APROBADA. Ingresa tu oferta para enviarla al vendedor:
-                  </div>
-
-                  <div className="space-y-2">
-                    <div className="flex items-center justify-between text-[11px] text-zinc-400">
-                      <span>Paquete de protección (opcional):</span>
-                      {selectedPkg && (
-                        <button
-                          type="button"
-                          onClick={() => setSelectedPkg(null)}
-                          className="text-red-brand hover:underline font-semibold text-[10px]"
-                        >
-                          Continuar sin paquete
-                        </button>
-                      )}
+                  <div className="p-4 bg-[#0a0a0c] border border-white/5 rounded-sm space-y-3">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs text-zinc-400">Monto ofertado:</span>
+                      <span className="text-lg font-display font-bold text-white">
+                        ${Number(userOffer?.amount || 0).toLocaleString()} MXN
+                      </span>
                     </div>
-                    {[
-                      { id: 'basico', name: 'Básico', price: 'Gratis', desc: 'Revisión documental' },
-                      { id: 'plus', name: 'Plus', price: '$1,800 MXN', rec: true, desc: 'Garantía 30 días' },
-                      { id: 'total', name: 'Total', price: '$3,500 MXN', desc: 'Garantía 90 días + Asistencia vial' },
-                    ].map((p) => {
-                      const isCensored = p.id === 'plus' || p.id === 'total';
-                      return (
-                        <label 
-                          key={p.id} 
-                          onClick={(e) => {
-                            e.preventDefault();
-                            if (isCensored) return;
-                            setSelectedPkg((prev) => (prev === p.id ? null : p.id));
-                          }}
-                          className={`flex items-center justify-between p-3 border rounded-sm transition-all select-none ${
-                            isCensored
-                              ? 'border-white/5 opacity-40 filter blur-[2px] pointer-events-none cursor-not-allowed'
-                              : selectedPkg === p.id
-                              ? 'border-red-brand bg-red-brand/5 cursor-pointer'
-                              : 'border-white/10 hover:border-red-brand/40 cursor-pointer'
-                          }`}
-                        >
-                          <div className="flex items-center gap-3">
-                            <input 
-                              type="radio" 
-                              name="moto_package"
-                              disabled={isCensored}
-                              checked={!isCensored && selectedPkg === p.id} 
-                              onChange={() => {}}
-                              className="accent-red-500 pointer-events-none" 
-                            />
-                            <div>
-                              <div className="text-white text-sm font-medium">{p.name}</div>
-                              <div className="text-[10px] text-zinc-500">{p.desc}</div>
-                              {p.rec && <div className="text-[9px] text-red-brand tracking-widest uppercase font-bold mt-0.5">Recomendado</div>}
-                            </div>
-                          </div>
-                          <div className="text-zinc-300 text-xs font-bold">{p.price}</div>
-                        </label>
-                      );
-                    })}
-                  </div>
-
-                  <div className="mt-4 pt-2 border-t border-white/5">
-                    <div>
-                      <label className="text-xs text-zinc-500 uppercase tracking-widest mb-1.5 block">Monto de oferta (MXN)</label>
-                      <input 
-                        type="number" 
-                        value={offerAmount} 
-                        onChange={(e) => setOfferAmount(e.target.value)}
-                        placeholder="Ej. 120000"
-                        className="w-full px-4 py-2.5 bg-[#0a0a0a] border border-white/10 focus:border-red-brand text-white text-sm rounded-sm outline-none transition-colors" 
-                      />
+                    <div className="flex items-center justify-between text-xs pt-2.5 border-t border-white/5">
+                      <span className="text-zinc-400">Estado de la oferta:</span>
+                      <span className="text-amber-400 font-semibold uppercase text-[11px] flex items-center gap-1.5">
+                        <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
+                        Pendiente de respuesta
+                      </span>
                     </div>
+                    {userOffer?.package && (
+                      <div className="flex items-center justify-between text-xs pt-2.5 border-t border-white/5">
+                        <span className="text-zinc-400">Paquete de protección:</span>
+                        <span className="text-zinc-200 uppercase font-semibold text-[11px]">
+                          {userOffer.package === 'basico'
+                            ? 'Básico'
+                            : userOffer.package === 'plus'
+                            ? 'Plus'
+                            : userOffer.package === 'total'
+                            ? 'Total'
+                            : userOffer.package}
+                        </span>
+                      </div>
+                    )}
+                    {userOffer?.created_at && (
+                      <div className="flex items-center justify-between text-xs pt-2.5 border-t border-white/5">
+                        <span className="text-zinc-400">Fecha de envío:</span>
+                        <span className="text-zinc-300 text-[11px]">
+                          {new Date(userOffer.created_at).toLocaleDateString('es-MX', {
+                            day: 'numeric',
+                            month: 'short',
+                            year: 'numeric',
+                          })}
+                        </span>
+                      </div>
+                    )}
                   </div>
 
-                  <button 
-                    onClick={handleOffer} 
-                    disabled={offerLoading}
-                    className="btn-red mt-2 w-full inline-flex items-center justify-center gap-2 text-xs font-bold tracking-widest uppercase px-5 py-3.5 rounded-sm disabled:opacity-70 cursor-pointer"
+                  <div className="p-3.5 bg-amber-500/10 border border-amber-500/20 rounded-sm text-xs space-y-1">
+                    <div className="flex items-center gap-1.5 text-amber-400 font-bold uppercase tracking-wider text-[11px]">
+                      <Clock size={13} /> Oferta en proceso de revisión
+                    </div>
+                    <p className="text-zinc-300 text-[11px] leading-relaxed">
+                      Tu propuesta formal ha sido enviada al vendedor. No es posible enviar otra oferta mientras esta se encuentre en revisión.
+                    </p>
+                  </div>
+
+                  <Link
+                    to="/panel/mis-ofertas"
+                    className="btn-outline w-full inline-flex items-center justify-center gap-2 text-xs font-bold tracking-widest uppercase px-5 py-3 rounded-sm cursor-pointer"
                   >
-                    {offerLoading ? 'Enviando...' : 'Enviar Oferta'}
-                  </button>
+                    <FileText size={13} /> Ver en Mis Ofertas
+                  </Link>
+                </div>
+              ) : isAcceptedOffer ? (
+                /* ESTADO 2: ACEPTADA (Mostrar "OFERTA ACEPTADA", monto y siguiente CTA existente) */
+                <div className="space-y-4">
+                  <div className="p-4 bg-emerald-500/5 border border-emerald-500/20 rounded-sm space-y-3">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs text-zinc-400">Monto acordado:</span>
+                      <span className="text-xl font-display font-bold text-emerald-400">
+                        ${Number(userOffer?.amount || 0).toLocaleString()} MXN
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between text-xs pt-2.5 border-t border-white/5">
+                      <span className="text-zinc-400">Estado de la oferta:</span>
+                      <span className="text-emerald-400 font-semibold uppercase text-[11px] flex items-center gap-1.5">
+                        <CheckCircle2 size={13} /> Aceptada por el vendedor
+                      </span>
+                    </div>
+                    {userOffer?.package && (
+                      <div className="flex items-center justify-between text-xs pt-2.5 border-t border-white/5">
+                        <span className="text-zinc-400">Paquete de protección:</span>
+                        <span className="text-zinc-200 uppercase font-semibold text-[11px]">
+                          {userOffer.package === 'basico'
+                            ? 'Básico'
+                            : userOffer.package === 'plus'
+                            ? 'Plus'
+                            : userOffer.package === 'total'
+                            ? 'Total'
+                            : userOffer.package}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="p-3.5 bg-emerald-500/10 border border-emerald-500/20 rounded-sm text-xs space-y-1">
+                    <div className="flex items-center gap-1.5 text-emerald-400 font-bold uppercase tracking-wider text-[11px]">
+                      <CheckCircle2 size={13} /> ¡Propuesta aceptada!
+                    </div>
+                    <p className="text-zinc-300 text-[11px] leading-relaxed">
+                      El vendedor ha aceptado tu oferta formal. Da seguimiento al contrato y los pasos de compra en tu panel de control.
+                    </p>
+                  </div>
+
+                  <Link
+                    to="/panel"
+                    className="btn-red w-full inline-flex items-center justify-center gap-2 text-xs font-bold tracking-widest uppercase px-5 py-3.5 rounded-sm shadow-lg cursor-pointer"
+                  >
+                    <FileText size={14} /> Ir a Mi Panel de Comprador
+                  </Link>
                 </div>
               ) : (
-                <div className="p-4 bg-amber-500/10 border border-amber-500/30 rounded-sm text-xs space-y-2">
-                  <div className="flex items-center gap-2 text-amber-400 font-bold uppercase tracking-wider">
-                    <Clock size={15} /> Certificación en Proceso
-                  </div>
-                  <p className="text-zinc-300 leading-relaxed text-[11px]">
-                    El envío de ofertas se habilitará automáticamente una vez que el peritaje técnico concluya y la certificación de la motocicleta sea <strong className="text-white">APROBADA</strong>.
-                  </p>
+                /* ESTADO 3, 4 y 5: RECHAZADA, EXPIRADA o SIN OFERTA (Permitir nueva oferta o mostrar formulario actual) */
+                <div className="space-y-4">
+                  {/* Alerta de estado para RECHAZADA */}
+                  {isRejectedOffer && (
+                    <div className="p-3.5 bg-red-500/10 border border-red-500/20 rounded-sm text-xs space-y-1.5">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-1.5 text-red-400 font-bold uppercase tracking-wider text-[11px]">
+                          <AlertCircle size={13} /> Oferta anterior rechazada
+                        </div>
+                        <span className="text-zinc-400 text-[11px] font-mono">
+                          ${Number(userOffer?.amount || 0).toLocaleString()} MXN
+                        </span>
+                      </div>
+                      {userOffer?.message ? (
+                        <p className="text-zinc-300 text-[11px] leading-relaxed">
+                          <strong className="text-zinc-400">Motivo del vendedor:</strong> {userOffer.message}
+                        </p>
+                      ) : (
+                        <p className="text-zinc-300 text-[11px] leading-relaxed">
+                          El vendedor no aceptó tu propuesta anterior. Puedes ingresar un nuevo monto para enviar una nueva oferta.
+                        </p>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Alerta de estado para EXPIRADA */}
+                  {isExpiredOffer && (
+                    <div className="p-3.5 bg-zinc-500/10 border border-zinc-500/20 rounded-sm text-xs space-y-1.5">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-1.5 text-zinc-400 font-bold uppercase tracking-wider text-[11px]">
+                          <Clock size={13} /> Oferta anterior expirada
+                        </div>
+                        <span className="text-zinc-400 text-[11px] font-mono">
+                          ${Number(userOffer?.amount || 0).toLocaleString()} MXN
+                        </span>
+                      </div>
+                      <p className="text-zinc-300 text-[11px] leading-relaxed">
+                        El tiempo para responder a tu oferta anterior ha concluido sin respuesta. Puedes enviar una nueva propuesta para reactivar la negociación.
+                      </p>
+                    </div>
+                  )}
+
+                  {/* Formulario de oferta (Actual o Nueva oferta) */}
+                  {isCertificationApproved ? (
+                    <div className="space-y-4">
+                      <div className="text-xs text-zinc-400 leading-relaxed">
+                        {isRejectedOffer || isExpiredOffer
+                          ? 'Ingresa una nueva oferta para enviarla al vendedor:'
+                          : 'Certificación APROBADA. Ingresa tu oferta para enviarla al vendedor:'}
+                      </div>
+
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between text-[11px] text-zinc-400">
+                          <span>Paquete de protección (opcional):</span>
+                          {selectedPkg && (
+                            <button
+                              type="button"
+                              onClick={() => setSelectedPkg(null)}
+                              className="text-red-brand hover:underline font-semibold text-[10px]"
+                            >
+                              Continuar sin paquete
+                            </button>
+                          )}
+                        </div>
+                        {[
+                          { id: 'basico', name: 'Básico', price: 'Gratis', desc: 'Revisión documental' },
+                          { id: 'plus', name: 'Plus', price: '$1,800 MXN', rec: true, desc: 'Garantía 30 días' },
+                          { id: 'total', name: 'Total', price: '$3,500 MXN', desc: 'Garantía 90 días + Asistencia vial' },
+                        ].map((p) => {
+                          const isCensored = p.id === 'plus' || p.id === 'total';
+                          return (
+                            <label
+                              key={p.id}
+                              onClick={(e) => {
+                                e.preventDefault();
+                                if (isCensored) return;
+                                setSelectedPkg((prev) => (prev === p.id ? null : p.id));
+                              }}
+                              className={`flex items-center justify-between p-3 border rounded-sm transition-all select-none ${
+                                isCensored
+                                  ? 'border-white/5 opacity-40 filter blur-[2px] pointer-events-none cursor-not-allowed'
+                                  : selectedPkg === p.id
+                                  ? 'border-red-brand bg-red-brand/5 cursor-pointer'
+                                  : 'border-white/10 hover:border-red-brand/40 cursor-pointer'
+                              }`}
+                            >
+                              <div className="flex items-center gap-3">
+                                <input
+                                  type="radio"
+                                  name="moto_package"
+                                  disabled={isCensored}
+                                  checked={!isCensored && selectedPkg === p.id}
+                                  onChange={() => {}}
+                                  className="accent-red-500 pointer-events-none"
+                                />
+                                <div>
+                                  <div className="text-white text-sm font-medium">{p.name}</div>
+                                  <div className="text-[10px] text-zinc-500">{p.desc}</div>
+                                  {p.rec && (
+                                    <div className="text-[9px] text-red-brand tracking-widest uppercase font-bold mt-0.5">
+                                      Recomendado
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                              <div className="text-zinc-300 text-xs font-bold">{p.price}</div>
+                            </label>
+                          );
+                        })}
+                      </div>
+
+                      <div className="mt-4 pt-2 border-t border-white/5">
+                        <div>
+                          <label className="text-xs text-zinc-500 uppercase tracking-widest mb-1.5 block">
+                            Monto de oferta (MXN)
+                          </label>
+                          <input
+                            type="number"
+                            value={offerAmount}
+                            onChange={(e) => setOfferAmount(e.target.value)}
+                            placeholder="Ej. 120000"
+                            className="w-full px-4 py-2.5 bg-[#0a0a0a] border border-white/10 focus:border-red-brand text-white text-sm rounded-sm outline-none transition-colors"
+                          />
+                        </div>
+                      </div>
+
+                      <button
+                        onClick={handleOffer}
+                        disabled={offerLoading}
+                        className="btn-red mt-2 w-full inline-flex items-center justify-center gap-2 text-xs font-bold tracking-widest uppercase px-5 py-3.5 rounded-sm disabled:opacity-70 cursor-pointer"
+                      >
+                        {offerLoading
+                          ? 'Enviando...'
+                          : isRejectedOffer || isExpiredOffer
+                          ? 'Enviar Nueva Oferta'
+                          : 'Enviar Oferta'}
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="p-4 bg-amber-500/10 border border-amber-500/30 rounded-sm text-xs space-y-2">
+                      <div className="flex items-center gap-2 text-amber-400 font-bold uppercase tracking-wider">
+                        <Clock size={15} /> Certificación en Proceso
+                      </div>
+                      <p className="text-zinc-300 leading-relaxed text-[11px]">
+                        El envío de ofertas se habilitará automáticamente una vez que el peritaje técnico concluya y la certificación de la motocicleta sea <strong className="text-white">APROBADA</strong>.
+                      </p>
+                    </div>
+                  )}
                 </div>
               )}
 
+              {/* Contactar asesor Motoluv (Siempre disponible) */}
               <a
                 href="https://wa.me/525643048865"
                 target="_blank"
