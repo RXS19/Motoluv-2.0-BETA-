@@ -1529,15 +1529,37 @@ export const offerApi = {
           if (!error && Array.isArray(data)) {
             return data
               .filter((o) => o.moto?.owner_id === session.user.id || o.seller_id === session.user.id)
-              .map((o) => ({
-                ...o,
-                status: o.status || 'ENVIADA',
-                motoBrand: o.moto?.brand,
-                motoModel: o.moto?.model,
-                originalPrice: o.moto?.price,
-                offeredAmount: o.amount,
-                buyerName: o.buyer_name || 'Comprador',
-              }));
+              .map((o) => {
+                const {
+                  package: _buyerPackage,
+                  boost_tier: _bt,
+                  is_boosted: _ib,
+                  seller_package: _sp,
+                  advertising_package: _ap,
+                  boost_package: _bp,
+                  ...safeOffer
+                } = o;
+
+                const safeMoto = o.moto ? { ...o.moto } : undefined;
+                if (safeMoto) {
+                  delete safeMoto.boost_tier;
+                  delete safeMoto.is_boosted;
+                  delete safeMoto.advertising_package;
+                  delete safeMoto.boost_package;
+                  delete safeMoto.seller_package;
+                }
+
+                return {
+                  ...safeOffer,
+                  ...(safeMoto ? { moto: safeMoto } : {}),
+                  status: o.status || 'ENVIADA',
+                  motoBrand: o.moto?.brand,
+                  motoModel: o.moto?.model,
+                  originalPrice: o.moto?.price,
+                  offeredAmount: o.amount,
+                  buyerName: o.buyer_name || 'Comprador',
+                };
+              });
           }
         }
       } catch (err) {
@@ -1547,7 +1569,29 @@ export const offerApi = {
 
     try {
       const res = await api.get('/my/received-offers');
-      return Array.isArray(res.data) ? res.data : [];
+      if (Array.isArray(res.data)) {
+        return res.data.map((o) => {
+          const {
+            package: _buyerPackage,
+            boost_tier: _bt,
+            is_boosted: _ib,
+            seller_package: _sp,
+            advertising_package: _ap,
+            boost_package: _bp,
+            ...safeOffer
+          } = o;
+          if (safeOffer.moto) {
+            safeOffer.moto = { ...safeOffer.moto };
+            delete safeOffer.moto.boost_tier;
+            delete safeOffer.moto.is_boosted;
+            delete safeOffer.moto.advertising_package;
+            delete safeOffer.moto.boost_package;
+            delete safeOffer.moto.seller_package;
+          }
+          return safeOffer;
+        });
+      }
+      return [];
     } catch {
       return [];
     }
@@ -1588,10 +1632,33 @@ export const offerApi = {
       }
 
       if (data) {
-        return data;
+        const {
+          package: _buyerPackage,
+          boost_tier: _bt,
+          is_boosted: _ib,
+          seller_package: _sp,
+          advertising_package: _ap,
+          boost_package: _bp,
+          ...safeData
+        } = data;
+        return safeData;
       }
     }
-    return api.patch(`/offers/${id}`, updatePayload).then((r) => r.data);
+    return api.patch(`/offers/${id}`, updatePayload).then((r) => {
+      if (r?.data) {
+        const {
+          package: _buyerPackage,
+          boost_tier: _bt,
+          is_boosted: _ib,
+          seller_package: _sp,
+          advertising_package: _ap,
+          boost_package: _bp,
+          ...safeData
+        } = r.data;
+        return safeData;
+      }
+      return r.data;
+    });
   },
 
   updateStatus: async (id, status, rejectionReason = null, rejectionConfirmed = false) => {

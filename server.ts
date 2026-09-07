@@ -947,8 +947,29 @@ api.get('/auth/me', authenticateToken, (req, res) => {
         console.warn('Supabase /my/received-offers error:', err?.message || err);
       }
     }
-    const list = Array.from(db.offers.values()).filter((o) => o.seller_id === user.id);
-    list.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+    const list = Array.from(db.offers.values())
+      .filter((o) => o.seller_id === user.id)
+      .map((o: any) => {
+        const {
+          package: _buyerPackage,
+          boost_tier: _bt,
+          is_boosted: _ib,
+          seller_package: _sp,
+          advertising_package: _ap,
+          boost_package: _bp,
+          ...safeOffer
+        } = o;
+        if (safeOffer.moto) {
+          safeOffer.moto = { ...safeOffer.moto };
+          delete safeOffer.moto.boost_tier;
+          delete safeOffer.moto.is_boosted;
+          delete safeOffer.moto.advertising_package;
+          delete safeOffer.moto.boost_package;
+          delete safeOffer.moto.seller_package;
+        }
+        return safeOffer;
+      });
+    list.sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
     return res.json(list);
   });
 
@@ -970,6 +991,19 @@ api.get('/auth/me', authenticateToken, (req, res) => {
       } catch (err: any) {
         console.warn('Supabase update offer status error:', err?.message || err);
       }
+    }
+
+    if (offer.seller_id === user.id) {
+      const {
+        package: _buyerPackage,
+        boost_tier: _bt,
+        is_boosted: _ib,
+        seller_package: _sp,
+        advertising_package: _ap,
+        boost_package: _bp,
+        ...safeOffer
+      } = offer as any;
+      return res.json(safeOffer);
     }
 
     return res.json(offer);

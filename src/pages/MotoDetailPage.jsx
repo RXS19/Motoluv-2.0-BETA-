@@ -184,8 +184,19 @@ const MotoDetailPage = () => {
 
         if (!error && Array.isArray(data) && data.length > 0) {
           const match = (apartado?.nod ? data.find((o) => o.nod === apartado.nod) : null) || data[0];
-          setSellerOffer(match || null);
-          return;
+          if (match) {
+            const {
+              package: _buyerPackage,
+              boost_tier: _bt,
+              is_boosted: _ib,
+              seller_package: _sp,
+              advertising_package: _ap,
+              boost_package: _bp,
+              ...safeMatch
+            } = match;
+            setSellerOffer(safeMatch);
+            return;
+          }
         }
       }
       setSellerOffer(null);
@@ -1085,20 +1096,6 @@ const MotoDetailPage = () => {
                               : rawSellerOfferStatus || 'En revisión'}
                           </span>
                         </div>
-                        {sellerOffer.package && (
-                          <div className="flex items-center justify-between text-xs pt-2.5 border-t border-white/5">
-                            <span className="text-zinc-400">Paquete de protección:</span>
-                            <span className="text-zinc-200 uppercase font-semibold text-[11px]">
-                              {sellerOffer.package === 'basico'
-                                ? 'Básico'
-                                : sellerOffer.package === 'plus'
-                                ? 'Plus'
-                                : sellerOffer.package === 'total'
-                                ? 'Total'
-                                : sellerOffer.package}
-                            </span>
-                          </div>
-                        )}
                         {sellerOffer.created_at && (
                           <div className="flex items-center justify-between text-xs pt-2.5 border-t border-white/5">
                             <span className="text-zinc-400">Fecha de recepción:</span>
@@ -1274,7 +1271,7 @@ const MotoDetailPage = () => {
                 <div className="space-y-4">
                   <div className="p-4 bg-emerald-500/5 border border-emerald-500/20 rounded-sm space-y-3">
                     <div className="flex items-center justify-between">
-                      <span className="text-xs text-zinc-400">Monto acordado:</span>
+                      <span className="text-xs text-zinc-400">Monto Pactado:</span>
                       <span className="text-xl font-display font-bold text-emerald-400">
                         ${Number(userOffer?.amount || 0).toLocaleString()} MXN
                       </span>
