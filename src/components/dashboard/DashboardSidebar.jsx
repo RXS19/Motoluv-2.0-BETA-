@@ -62,7 +62,7 @@ const DashboardSidebar = ({ activeTab = 'resumen', setActiveTab, mode = 'comprad
     { id: 'ofertas', label: 'Ofertas recibidas', icon: Tag, path: '/panel/mis-ofertas' },
     { id: 'inspecciones', label: 'Inspecciones', icon: ShieldCheck, path: '/panel?tab=inspecciones' },
     { id: 'proceso', label: 'Ventas en proceso', icon: Clock, path: '/panel?tab=proceso' },
-    { id: 'completadas', label: 'Ventas completadas', icon: CheckCircle2, path: '/panel?tab=completadas' },
+    { id: 'completadas', label: 'Mis ventas completadas', icon: CheckCircle2, path: '/panel?tab=completadas' },
     { id: 'pagos', label: 'Pagos y facturación', icon: CreditCard, path: '/panel/cuenta-bancaria' },
     { id: 'configuracion', label: 'Configuración', icon: Settings, path: '/panel/perfil' },
   ];

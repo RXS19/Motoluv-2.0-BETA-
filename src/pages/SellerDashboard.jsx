@@ -33,7 +33,7 @@ import { motoApi, offerApi, apartadoApi } from '../services/api';
 import DashboardSidebar from '../components/dashboard/DashboardSidebar';
 import DashboardHeaderBar from '../components/dashboard/DashboardHeaderBar';
 import BoostPublicationModal from '../components/dashboard/BoostPublicationModal';
-import OperationsTimelineViewer from '../components/dashboard/OperationsTimelineViewer';
+import OperationsTimelineViewer, { OperationDetailModal } from '../components/dashboard/OperationsTimelineViewer';
 import ConfirmDeleteModal from '../components/ConfirmDeleteModal';
 import { CERTIFIED_WORKSHOPS } from '../data/workshops';
 import { calculateCommission } from '../utils/commission';
@@ -80,6 +80,9 @@ const SellerDashboard = () => {
   const [rejectLoading, setRejectLoading] = useState(false);
   const [previousRejectionsCount, setPreviousRejectionsCount] = useState(0);
   const [acceptFee, setAcceptFee] = useState(false);
+
+  // Selected completed operation for timeline detail modal
+  const [selectedCompletedOp, setSelectedCompletedOp] = useState(null);
 
   // Bank form state
   const [bankForm, setBankForm] = useState({
@@ -198,6 +201,82 @@ const SellerDashboard = () => {
       return true;
     });
   }, [apartados]);
+
+  // Date formatter for completed sales cards
+  const formatOperationDate = (dateVal) => {
+    if (!dateVal) return '—';
+    try {
+      const d = new Date(dateVal);
+      if (isNaN(d.getTime())) return '—';
+      return d.toLocaleDateString('es-MX', {
+        day: 'numeric',
+        month: 'short',
+        year: 'numeric',
+      });
+    } catch {
+      return '—';
+    }
+  };
+
+  // Completed sales for "Mis ventas completadas" tab
+  // STRICT RULE:
+  // - Show exclusively operations where operation_tracking.delivery_status = 'COMPLETADA'
+  // - Operation must belong to authenticated seller: moto.owner_id === user.id
+  // - Deduplicated by NOD: one card per NOD
+  // - Sorted from most recent delivery to oldest
+  const completedSales = useMemo(() => {
+    if (!Array.isArray(apartados) || !user?.id) return [];
+
+    const seenNods = new Set();
+    const list = [];
+
+    for (const item of apartados) {
+      // Must belong to authenticated seller via moto.owner_id
+      const motoObj = Array.isArray(item.moto) ? item.moto[0] : (item.moto || null);
+      const ownerId = motoObj?.owner_id || item.seller_id;
+      if (ownerId !== user.id) continue;
+
+      // Must have delivery_status = 'COMPLETADA' from operation_tracking
+      const deliveryStatus = String(
+        item.tracking?.delivery_status ||
+        item.operation_tracking?.delivery_status ||
+        item.delivery_status ||
+        ''
+      ).toUpperCase().trim();
+
+      if (deliveryStatus !== 'COMPLETADA') continue;
+
+      const nod = item.nod || item.tracking?.nod || item.contract?.nod || null;
+      if (!nod) continue;
+
+      // No duplicate operations: 1 card per NOD
+      if (seenNods.has(nod)) continue;
+      seenNods.add(nod);
+
+      list.push(item);
+    }
+
+    // Sort by delivery date descending (most recent first)
+    list.sort((a, b) => {
+      const dateA = new Date(
+        a.tracking?.delivery_completed_at ||
+        a.delivery_completed_at ||
+        a.updated_at ||
+        a.created_at ||
+        0
+      ).getTime();
+      const dateB = new Date(
+        b.tracking?.delivery_completed_at ||
+        b.delivery_completed_at ||
+        b.updated_at ||
+        b.created_at ||
+        0
+      ).getTime();
+      return dateB - dateA;
+    });
+
+    return list;
+  }, [apartados, user?.id]);
 
 // Helper to calculate the 4-day inspection window [Day 0: created_at .. Day 3: created_at + 3 days]
 const getApartadoScheduleRange = (createdAt) => {
@@ -1296,6 +1375,165 @@ const getApartadoScheduleRange = (createdAt) => {
                   );
                 })}
               </div>
+            )}
+          </div>
+        )}
+
+        {/* ================= TAB 6: VENTAS COMPLETADAS ================= */}
+        {activeTab === 'completadas' && (
+          <div className="space-y-6">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+              <div>
+                <h1 className="text-2xl font-bold text-white">Mis ventas completadas</h1>
+                <p className="text-xs text-zinc-400 mt-0.5">
+                  Operaciones finalizadas con entrega completada y certificación oficial.
+                </p>
+              </div>
+              {completedSales.length > 0 && (
+                <span className="text-xs font-semibold px-3 py-1 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 w-fit">
+                  {completedSales.length} {completedSales.length === 1 ? 'venta completada' : 'ventas completadas'}
+                </span>
+              )}
+            </div>
+
+            {completedSales.length === 0 ? (
+              <div className="p-16 bg-[#101013] border border-white/5 rounded-2xl text-center space-y-3">
+                <CheckCircle2 size={36} className="text-zinc-600 mx-auto" />
+                <h3 className="text-base font-bold text-white">No tienes ventas completadas todavía.</h3>
+                <p className="text-xs text-zinc-400 max-w-md mx-auto">
+                  Aquí aparecerán exclusivamente las operaciones cuya entrega haya sido completada con estatus oficial COMPLETADA.
+                </p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+                {completedSales.map((item) => {
+                  const motoObj = Array.isArray(item.moto) ? item.moto[0] : (item.moto || null);
+                  const brand = item.moto_brand || motoObj?.brand || 'Motocicleta';
+                  const model = item.moto_model || motoObj?.model || '';
+                  const year = item.moto_year || motoObj?.year || '';
+                  const contractualPrice = Number(
+                    item.contract?.offer_amount ??
+                    item.contract_price ??
+                    item.moto_price ??
+                    motoObj?.price ??
+                    item.amount ??
+                    0
+                  );
+                  const photoUrl = item.moto_image || (Array.isArray(motoObj?.images) ? motoObj?.images[0] : motoObj?.image) || null;
+                  const fechaApartado = item.apartado?.created_at || item.created_at;
+                  const fechaEntrega = item.tracking?.delivery_completed_at || item.delivery_completed_at;
+
+                  return (
+                    <div
+                      key={item.nod || item.id}
+                      className="bg-[#101013] border border-white/5 hover:border-white/10 rounded-2xl p-5 flex flex-col justify-between transition-all"
+                    >
+                      <div className="space-y-4">
+                        {/* 1. NOD — PRIMER DATO Y SIEMPRE VISIBLE */}
+                        <div className="flex items-center justify-between pb-3 border-b border-white/5">
+                          <div className="flex items-center gap-2">
+                            <span className="text-[11px] font-semibold text-zinc-400 uppercase tracking-wider">NOD:</span>
+                            <span className="text-sm font-mono font-bold text-white px-2.5 py-1 bg-white/5 border border-white/10 rounded-lg">
+                              {item.nod}
+                            </span>
+                          </div>
+                          <span className="text-[11px] font-bold text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2.5 py-0.5 rounded-full flex items-center gap-1">
+                            <CheckCircle2 size={12} />
+                            Completada
+                          </span>
+                        </div>
+
+                        {/* 2. Foto de la moto */}
+                        <div className="relative aspect-[16/9] w-full rounded-xl overflow-hidden bg-black/60 border border-white/5 flex items-center justify-center">
+                          {photoUrl ? (
+                            <img
+                              src={resolveSafeImageUrl(photoUrl, 'moto')}
+                              alt={`${brand} ${model}`}
+                              className="w-full h-full object-cover"
+                              onError={(e) => {
+                                e.target.onerror = null;
+                                e.target.style.display = 'none';
+                              }}
+                            />
+                          ) : (
+                            <Bike size={32} className="text-zinc-600 opacity-40" />
+                          )}
+                        </div>
+
+                        {/* 3. Marca/modelo */}
+                        <div>
+                          <h3 className="text-base font-bold text-white truncate">
+                            {brand} {model} {year}
+                          </h3>
+                        </div>
+
+                        {/* 4. Precio contractual */}
+                        <div className="flex items-baseline justify-between py-1">
+                          <span className="text-xs text-zinc-400 font-medium">Precio contractual</span>
+                          <span className="text-base font-bold text-emerald-400">
+                            ${contractualPrice.toLocaleString('es-MX')} MXN
+                          </span>
+                        </div>
+
+                        {/* 5. Estatus: ENTREGADA */}
+                        <div className="flex items-center justify-between text-xs py-1.5 border-t border-white/5">
+                          <span className="text-zinc-400">Estatus</span>
+                          <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full font-bold text-emerald-400 bg-emerald-500/10 border border-emerald-500/20">
+                            <Check size={12} strokeWidth={3} />
+                            ENTREGADA
+                          </span>
+                        </div>
+
+                        {/* 6. Certificación: CERTIFICADA */}
+                        <div className="flex items-center justify-between text-xs py-1.5 border-t border-white/5">
+                          <span className="text-zinc-400">Certificación</span>
+                          <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full font-bold text-emerald-400 bg-emerald-500/10 border border-emerald-500/20">
+                            <ShieldCheck size={13} className="text-emerald-400" />
+                            CERTIFICADA
+                          </span>
+                        </div>
+
+                        {/* 7. Inicio de operación: fecha del apartado */}
+                        <div className="flex items-center justify-between text-xs py-1.5 border-t border-white/5">
+                          <span className="text-zinc-400">Inicio de operación</span>
+                          <span className="text-zinc-200 font-medium">
+                            {formatOperationDate(fechaApartado)}
+                          </span>
+                        </div>
+
+                        {/* 8. Cierre de operación: delivery_completed_at */}
+                        <div className="flex items-center justify-between text-xs py-1.5 border-t border-white/5">
+                          <span className="text-zinc-400">Cierre de operación</span>
+                          <span className="text-zinc-200 font-medium">
+                            {formatOperationDate(fechaEntrega)}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* 9. “Ver operación” */}
+                      <div className="pt-4 mt-2">
+                        <button
+                          type="button"
+                          onClick={() => setSelectedCompletedOp(item)}
+                          className="w-full py-2.5 px-4 bg-[#18181f] hover:bg-white/10 text-white text-xs font-bold rounded-xl border border-white/10 hover:border-white/20 transition-all flex items-center justify-center gap-2 cursor-pointer shadow-sm"
+                        >
+                          <Eye size={14} className="text-zinc-400" />
+                          <span>Ver operación</span>
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
+            {/* Detail Modal reusing the existing Operations timeline */}
+            {selectedCompletedOp && (
+              <OperationDetailModal
+                operation={selectedCompletedOp}
+                onClose={() => setSelectedCompletedOp(null)}
+                mode="vendedor"
+              />
             )}
           </div>
         )}

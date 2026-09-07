@@ -1240,219 +1240,238 @@ const OperationsTimelineViewer = ({
 
       {/* ================= DETAIL MODAL (NO DATES OR HOURS) ================= */}
       {activeSelectedOperation && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 backdrop-blur-sm p-4 animate-in fade-in duration-150">
-          <div className="bg-[#121216] border border-white/10 rounded-2xl max-w-xl w-full p-6 space-y-6 text-left relative shadow-2xl max-h-[90vh] overflow-y-auto">
-            {/* Modal Header */}
-            <div className="flex items-start justify-between pb-4 border-b border-white/5">
-              <div className="flex items-center gap-3.5">
-                <div className="w-14 h-14 rounded-xl bg-black/60 border border-white/10 overflow-hidden flex-shrink-0 relative flex items-center justify-center">
-                  {(() => {
-                    const modalMotoKey = activeSelectedOperation.moto_id ? String(activeSelectedOperation.moto_id) : null;
-                    const modalImg = (modalMotoKey && associatedMotoImages[modalMotoKey]) || activeSelectedOperation.image;
-                    return modalImg ? (
-                      <img
-                        src={resolveSafeImageUrl(modalImg, 'moto')}
-                        alt={activeSelectedOperation.model}
-                        className="w-full h-full object-cover"
-                        onError={(e) => {
-                          e.target.onerror = null;
-                          e.target.style.display = 'none';
-                        }}
-                      />
-                    ) : (
-                      <Bike size={20} className="text-zinc-600 opacity-40" />
-                    );
-                  })()}
-                </div>
-                <div>
-                  <h3 className="text-base font-bold text-white">
-                    {activeSelectedOperation.brand} {activeSelectedOperation.model} {activeSelectedOperation.year}
-                  </h3>
-                  <p className="text-xs font-mono text-zinc-400">
-                    NOD de Operación: <span className="text-white font-semibold">{activeSelectedOperation.nod}</span>
-                  </p>
-                  {(!activeSelectedOperation.isRejected || isSeller) && (
-                    <p className="text-sm font-bold text-red-brand mt-0.5">
-                      ${activeSelectedOperation.price.toLocaleString('es-MX')} MXN
-                    </p>
-                  )}
-                </div>
-              </div>
+        <OperationDetailModal
+          operation={activeSelectedOperation}
+          onClose={() => setSelectedOperation(null)}
+          mode={mode}
+          associatedMotoImages={associatedMotoImages}
+        />
+      )}
+    </div>
+  );
+};
 
-              <button
-                onClick={() => setSelectedOperation(null)}
-                className="p-1.5 rounded-lg text-zinc-400 hover:text-white hover:bg-white/5 transition-colors"
-              >
-                <X size={18} />
-              </button>
+export const OperationDetailModal = ({
+  operation,
+  onClose,
+  mode = 'vendedor',
+  associatedMotoImages = {},
+}) => {
+  if (!operation) return null;
+  const isSeller = mode === 'vendedor';
+  const activeSelectedOperation = operation.steps ? operation : resolveOperationTimeline(operation);
+
+  const modalMotoKey = activeSelectedOperation.moto_id ? String(activeSelectedOperation.moto_id) : null;
+  const modalImg = (modalMotoKey && associatedMotoImages[modalMotoKey]) || activeSelectedOperation.image;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 backdrop-blur-sm p-4 animate-in fade-in duration-150">
+      <div className="bg-[#121216] border border-white/10 rounded-2xl max-w-xl w-full p-6 space-y-6 text-left relative shadow-2xl max-h-[90vh] overflow-y-auto">
+        {/* Modal Header */}
+        <div className="flex items-start justify-between pb-4 border-b border-white/5">
+          <div className="flex items-center gap-3.5">
+            <div className="w-14 h-14 rounded-xl bg-black/60 border border-white/10 overflow-hidden flex-shrink-0 relative flex items-center justify-center">
+              {modalImg ? (
+                <img
+                  src={resolveSafeImageUrl(modalImg, 'moto')}
+                  alt={activeSelectedOperation.model}
+                  className="w-full h-full object-cover"
+                  onError={(e) => {
+                    e.target.onerror = null;
+                    e.target.style.display = 'none';
+                  }}
+                />
+              ) : (
+                <Bike size={20} className="text-zinc-600 opacity-40" />
+              )}
             </div>
-
-            {/* Summary Progress bar inside modal */}
-            <div className="p-4 bg-[#18181f] border border-white/5 rounded-xl space-y-3">
-              <span className="text-xs font-bold text-zinc-300 block">Etapas de la Operación</span>
-              <div className="grid grid-cols-3 sm:grid-cols-6 gap-2 text-center text-[11px]">
-                {activeSelectedOperation.steps.map((st) => (
-                  <div key={st.id} className="space-y-1">
-                    <div
-                      className={`h-1.5 rounded-full ${
-                        activeSelectedOperation.isRejected || st.status === 'rejected'
-                          ? 'bg-red-500'
-                          : st.status === 'completed'
-                          ? 'bg-emerald-500'
-                          : st.status === 'in_progress' || st.isActive
-                          ? 'bg-blue-500 animate-pulse'
-                          : 'bg-white/10'
-                      }`}
-                    />
-                    <span className={`font-semibold block truncate ${
-                      activeSelectedOperation.isRejected || st.status === 'rejected'
-                        ? 'text-red-400 font-bold'
-                        : 'text-zinc-300'
-                    }`}>
-                      {st.label}
-                    </span>
-                    <span
-                      className={`text-[10px] block truncate ${
-                        st.status === 'rejected'
-                          ? 'text-red-400 font-semibold'
-                          : activeSelectedOperation.isRejected
-                          ? 'text-red-400 font-semibold'
-                          : st.status === 'completed'
-                          ? 'text-emerald-400'
-                          : st.status === 'in_progress' || st.isActive
-                          ? 'text-blue-400 font-semibold'
-                          : 'text-zinc-500'
-                      }`}
-                    >
-                      {st.substatus}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* Detailed Key-Values (STRICTLY NO DATES OR HOURS) */}
-            <div className="space-y-3 text-xs">
-              <div className="flex justify-between py-2 border-b border-white/5">
-                <span className="text-zinc-400">NOD:</span>
-                <span className="text-zinc-200 font-mono font-semibold">{activeSelectedOperation.nod}</span>
-              </div>
-
-              {/* Counterparty details - hidden for buyer if rejected */}
+            <div>
+              <h3 className="text-base font-bold text-white">
+                {activeSelectedOperation.brand} {activeSelectedOperation.model} {activeSelectedOperation.year}
+              </h3>
+              <p className="text-xs font-mono text-zinc-400">
+                NOD de Operación: <span className="text-white font-semibold">{activeSelectedOperation.nod}</span>
+              </p>
               {(!activeSelectedOperation.isRejected || isSeller) && (
-                <div className="flex justify-between py-2 border-b border-white/5">
-                  <span className="text-zinc-400">{isSeller ? 'Comprador' : 'Vendedor'}:</span>
-                  <span className="text-zinc-200 font-medium">
-                    {isSeller ? (
-                      activeSelectedOperation.buyerName
-                    ) : (
-                      <span className="flex items-center gap-1.5">
-                        <ShieldCheck
-                          size={13}
-                          className={activeSelectedOperation.sellerIsVerified ? 'text-emerald-400' : 'text-zinc-400'}
-                        />
-                        <span className={activeSelectedOperation.sellerIsVerified ? 'text-emerald-400 font-semibold' : 'text-zinc-300'}>
-                          {activeSelectedOperation.sellerIsVerified ? 'Vendedor verificado' : 'Vendedor no verificado'}
-                        </span>
-                      </span>
-                    )}
-                  </span>
-                </div>
+                <p className="text-sm font-bold text-red-brand mt-0.5">
+                  ${Number(activeSelectedOperation.price || 0).toLocaleString('es-MX')} MXN
+                </p>
               )}
-
-              {/* Certification status */}
-              <div className="flex justify-between py-2 border-b border-white/5">
-                <span className="text-zinc-400">Dictamen de Certificación:</span>
-                <span
-                  className={`font-bold uppercase ${
-                    activeSelectedOperation.isRejected
-                      ? 'text-red-400'
-                      : activeSelectedOperation.certificationStatus === 'APROBADA'
-                      ? 'text-emerald-400'
-                      : 'text-amber-400'
-                  }`}
-                >
-                  {activeSelectedOperation.isRejected
-                    ? 'Motocicleta Rechazada'
-                    : activeSelectedOperation.certificationStatus}
-                </span>
-              </div>
-
-              {/* Seller-only inspection details (NO dates/hours) */}
-              {isSeller && !activeSelectedOperation.isRejected && activeSelectedOperation.workshop && (
-                <div className="flex justify-between py-2 border-b border-white/5">
-                  <span className="text-zinc-400">Taller Oficial Asignado:</span>
-                  <span className="text-zinc-200 font-medium">
-                    {activeSelectedOperation.workshop}
-                  </span>
-                </div>
-              )}
-
-              {isSeller && (
-                <div className="flex justify-between py-2 border-b border-white/5">
-                  <span className="text-zinc-400">Estado de Cita Técnica:</span>
-                  <span
-                    className={`font-semibold ${
-                      activeSelectedOperation.isRejected
-                        ? 'text-red-400'
-                        : activeSelectedOperation.appointmentStatus === 'COMPLETADA'
-                        ? 'text-emerald-400'
-                        : activeSelectedOperation.appointmentStatus === 'PROGRAMADA'
-                        ? 'text-blue-400'
-                        : activeSelectedOperation.appointmentStatus === 'CANCELADA' || activeSelectedOperation.appointmentStatus === 'EXPIRADA' || activeSelectedOperation.appointmentStatus === 'EXPIRADO'
-                        ? 'text-red-400'
-                        : 'text-zinc-300'
-                    }`}
-                  >
-                    {activeSelectedOperation.isRejected
-                      ? 'PERITAJE RECHAZADO'
-                      : activeSelectedOperation.appointmentStatus === 'COMPLETADA'
-                      ? 'COMPLETADA'
-                      : activeSelectedOperation.appointmentStatus === 'PROGRAMADA'
-                      ? 'PROGRAMADA'
-                      : activeSelectedOperation.appointmentStatus === 'EXPIRADA' || activeSelectedOperation.appointmentStatus === 'EXPIRADO'
-                      ? 'CITA EXPIRADA'
-                      : activeSelectedOperation.appointmentStatus === 'CANCELADA' || activeSelectedOperation.appointmentStatus === 'CANCELADO'
-                      ? 'CITA CANCELADA'
-                      : activeSelectedOperation.appointmentStatus || 'SIN CITA'}
-                  </span>
-                </div>
-              )}
-            </div>
-
-            {/* Actions & WhatsApp Support 5643048865 */}
-            <div className="flex items-center gap-3 pt-2">
-              <a
-                href="https://wa.me/525643048865"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex-1 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-xl flex items-center justify-center gap-2 transition-colors"
-              >
-                <MessageCircle size={15} />
-                <span>Contactar Asesor Motoluv</span>
-              </a>
-
-              {activeSelectedOperation.moto_id && (
-                <Link
-                  to={`/motos/${activeSelectedOperation.moto_id}`}
-                  onClick={(e) => handleMotoLinkClick(e, activeSelectedOperation.moto_id)}
-                  className="px-4 py-2.5 bg-white/10 hover:bg-white/15 text-white font-bold text-xs rounded-xl border border-white/10 flex items-center gap-1.5 transition-colors"
-                >
-                  <Eye size={14} />
-                  <span>Ver Moto</span>
-                </Link>
-              )}
-
-              <button
-                onClick={() => setSelectedOperation(null)}
-                className="px-4 py-2.5 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 hover:text-white font-bold text-xs rounded-xl transition-colors"
-              >
-                Cerrar
-              </button>
             </div>
           </div>
+
+          <button
+            onClick={onClose}
+            className="p-1.5 rounded-lg text-zinc-400 hover:text-white hover:bg-white/5 transition-colors"
+          >
+            <X size={18} />
+          </button>
         </div>
-      )}
+
+        {/* Summary Progress bar inside modal */}
+        <div className="p-4 bg-[#18181f] border border-white/5 rounded-xl space-y-3">
+          <span className="text-xs font-bold text-zinc-300 block">Etapas de la Operación</span>
+          <div className="grid grid-cols-3 sm:grid-cols-6 gap-2 text-center text-[11px]">
+            {activeSelectedOperation.steps.map((st) => (
+              <div key={st.id} className="space-y-1">
+                <div
+                  className={`h-1.5 rounded-full ${
+                    activeSelectedOperation.isRejected || st.status === 'rejected'
+                      ? 'bg-red-500'
+                      : st.status === 'completed'
+                      ? 'bg-emerald-500'
+                      : st.status === 'in_progress' || st.isActive
+                      ? 'bg-blue-500 animate-pulse'
+                      : 'bg-white/10'
+                  }`}
+                />
+                <span className={`font-semibold block truncate ${
+                  activeSelectedOperation.isRejected || st.status === 'rejected'
+                    ? 'text-red-400 font-bold'
+                    : 'text-zinc-300'
+                }`}>
+                  {st.label}
+                </span>
+                <span
+                  className={`text-[10px] block truncate ${
+                    st.status === 'rejected'
+                      ? 'text-red-400 font-semibold'
+                      : activeSelectedOperation.isRejected
+                      ? 'text-red-400 font-semibold'
+                      : st.status === 'completed'
+                      ? 'text-emerald-400'
+                      : st.status === 'in_progress' || st.isActive
+                      ? 'text-blue-400 font-semibold'
+                      : 'text-zinc-500'
+                  }`}
+                >
+                  {st.substatus}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Detailed Key-Values (STRICTLY NO DATES OR HOURS) */}
+        <div className="space-y-3 text-xs">
+          <div className="flex justify-between py-2 border-b border-white/5">
+            <span className="text-zinc-400">NOD:</span>
+            <span className="text-zinc-200 font-mono font-semibold">{activeSelectedOperation.nod}</span>
+          </div>
+
+          {/* Counterparty details - hidden for buyer if rejected */}
+          {(!activeSelectedOperation.isRejected || isSeller) && (
+            <div className="flex justify-between py-2 border-b border-white/5">
+              <span className="text-zinc-400">{isSeller ? 'Comprador' : 'Vendedor'}:</span>
+              <span className="text-zinc-200 font-medium">
+                {isSeller ? (
+                  activeSelectedOperation.buyerName
+                ) : (
+                  <span className="flex items-center gap-1.5">
+                    <ShieldCheck
+                      size={13}
+                      className={activeSelectedOperation.sellerIsVerified ? 'text-emerald-400' : 'text-zinc-400'}
+                    />
+                    <span className={activeSelectedOperation.sellerIsVerified ? 'text-emerald-400 font-semibold' : 'text-zinc-300'}>
+                      {activeSelectedOperation.sellerIsVerified ? 'Vendedor verificado' : 'Vendedor no verificado'}
+                    </span>
+                  </span>
+                )}
+              </span>
+            </div>
+          )}
+
+          {/* Certification status */}
+          <div className="flex justify-between py-2 border-b border-white/5">
+            <span className="text-zinc-400">Dictamen de Certificación:</span>
+            <span
+              className={`font-bold uppercase ${
+                activeSelectedOperation.isRejected
+                  ? 'text-red-400'
+                  : activeSelectedOperation.certificationStatus === 'APROBADA'
+                  ? 'text-emerald-400'
+                  : 'text-amber-400'
+              }`}
+            >
+              {activeSelectedOperation.isRejected
+                ? 'Motocicleta Rechazada'
+                : activeSelectedOperation.certificationStatus}
+            </span>
+          </div>
+
+          {/* Seller-only inspection details (NO dates/hours) */}
+          {isSeller && !activeSelectedOperation.isRejected && activeSelectedOperation.workshop && (
+            <div className="flex justify-between py-2 border-b border-white/5">
+              <span className="text-zinc-400">Taller Oficial Asignado:</span>
+              <span className="text-zinc-200 font-medium">
+                {activeSelectedOperation.workshop}
+              </span>
+            </div>
+          )}
+
+          {isSeller && (
+            <div className="flex justify-between py-2 border-b border-white/5">
+              <span className="text-zinc-400">Estado de Cita Técnica:</span>
+              <span
+                className={`font-semibold ${
+                  activeSelectedOperation.isRejected
+                    ? 'text-red-400'
+                    : activeSelectedOperation.appointmentStatus === 'COMPLETADA'
+                    ? 'text-emerald-400'
+                    : activeSelectedOperation.appointmentStatus === 'PROGRAMADA'
+                    ? 'text-blue-400'
+                    : activeSelectedOperation.appointmentStatus === 'CANCELADA' || activeSelectedOperation.appointmentStatus === 'EXPIRADA' || activeSelectedOperation.appointmentStatus === 'EXPIRADO'
+                    ? 'text-red-400'
+                    : 'text-zinc-300'
+                }`}
+              >
+                {activeSelectedOperation.isRejected
+                  ? 'PERITAJE RECHAZADO'
+                  : activeSelectedOperation.appointmentStatus === 'COMPLETADA'
+                  ? 'COMPLETADA'
+                  : activeSelectedOperation.appointmentStatus === 'PROGRAMADA'
+                  ? 'PROGRAMADA'
+                  : activeSelectedOperation.appointmentStatus === 'EXPIRADA' || activeSelectedOperation.appointmentStatus === 'EXPIRADO'
+                  ? 'CITA EXPIRADA'
+                  : activeSelectedOperation.appointmentStatus === 'CANCELADA' || activeSelectedOperation.appointmentStatus === 'CANCELADO'
+                  ? 'CITA CANCELADA'
+                  : activeSelectedOperation.appointmentStatus || 'SIN CITA'}
+              </span>
+            </div>
+          )}
+        </div>
+
+        {/* Actions & WhatsApp Support 5643048865 */}
+        <div className="flex items-center gap-3 pt-2">
+          <a
+            href="https://wa.me/525643048865"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex-1 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-xl flex items-center justify-center gap-2 transition-colors"
+          >
+            <MessageCircle size={15} />
+            <span>Contactar Asesor Motoluv</span>
+          </a>
+
+          {activeSelectedOperation.moto_id && (
+            <Link
+              to={`/motos/${activeSelectedOperation.moto_id}`}
+              onClick={(e) => handleMotoLinkClick(e, activeSelectedOperation.moto_id)}
+              className="px-4 py-2.5 bg-white/10 hover:bg-white/15 text-white font-bold text-xs rounded-xl border border-white/10 flex items-center gap-1.5 transition-colors"
+            >
+              <Eye size={14} />
+              <span>Ver Moto</span>
+            </Link>
+          )}
+
+          <button
+            onClick={onClose}
+            className="px-4 py-2.5 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 hover:text-white font-bold text-xs rounded-xl transition-colors"
+          >
+            Cerrar
+          </button>
+        </div>
+      </div>
     </div>
   );
 };
