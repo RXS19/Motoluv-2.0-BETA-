@@ -34,6 +34,7 @@ const MotoDetailPage = () => {
   const [offerAmount, setOfferAmount] = useState('');
   const [offerLoading, setOfferLoading] = useState(false);
   const [userOffer, setUserOffer] = useState(null);
+  const [sellerOffer, setSellerOffer] = useState(null);
 
   // Apartado state from public.apartados
   const [apartado, setApartado] = useState(null);
@@ -125,8 +126,17 @@ const MotoDetailPage = () => {
     }
   }, [user, moto]);
 
+  const isOwnerUser = Boolean(
+    user?.id &&
+    moto &&
+    (String(user.id) === String(moto.owner_id) ||
+     String(user.id) === String(moto.seller_id) ||
+     String(user.id) === String(moto.ownerId) ||
+     String(user.id) === String(moto.sellerId))
+  );
+
   const loadUserOffer = async () => {
-    if (!user?.id || !moto?.id) {
+    if (!user?.id || !moto?.id || isOwnerUser) {
       setUserOffer(null);
       return;
     }
@@ -146,11 +156,60 @@ const MotoDetailPage = () => {
     }
   };
 
+  const loadSellerOffer = async () => {
+    if (!user?.id || !moto?.id || !isOwnerUser) {
+      setSellerOffer(null);
+      return;
+    }
+    try {
+      const received = await offerApi.received();
+      if (Array.isArray(received) && received.length > 0) {
+        const found = received.find(
+          (o) =>
+            (apartado?.nod && o.nod === apartado.nod) ||
+            String(o.moto_id || o.moto?.id) === String(moto.id)
+        );
+        if (found) {
+          setSellerOffer(found);
+          return;
+        }
+      }
+
+      if (isSupabaseConfigured && supabase) {
+        const { data, error } = await supabase
+          .from('offers')
+          .select('*')
+          .eq('moto_id', String(moto.id))
+          .order('created_at', { ascending: false });
+
+        if (!error && Array.isArray(data) && data.length > 0) {
+          const match = (apartado?.nod ? data.find((o) => o.nod === apartado.nod) : null) || data[0];
+          setSellerOffer(match || null);
+          return;
+        }
+      }
+      setSellerOffer(null);
+    } catch (err) {
+      console.warn('Error fetching seller offer for moto:', err);
+      setSellerOffer(null);
+    }
+  };
+
   useEffect(() => {
-    loadUserOffer();
+    if (isOwnerUser) {
+      setUserOffer(null);
+      loadSellerOffer();
+    } else {
+      setSellerOffer(null);
+      loadUserOffer();
+    }
 
     const handleFocus = () => {
-      loadUserOffer();
+      if (isOwnerUser) {
+        loadSellerOffer();
+      } else {
+        loadUserOffer();
+      }
     };
     window.addEventListener('focus', handleFocus);
     document.addEventListener('visibilitychange', handleFocus);
@@ -158,7 +217,7 @@ const MotoDetailPage = () => {
       window.removeEventListener('focus', handleFocus);
       document.removeEventListener('visibilitychange', handleFocus);
     };
-  }, [user?.id, moto?.id]);
+  }, [user?.id, moto?.id, apartado?.nod, isOwnerUser]);
 
   useEffect(() => {
     if (!user || !moto?.id || !apartadoLoaded) {
@@ -292,6 +351,12 @@ const MotoDetailPage = () => {
   const isRejectedOffer = rawOfferStatus === 'RECHAZADA' || rawOfferStatus === 'REJECTED';
   const isExpiredOffer = rawOfferStatus === 'EXPIRADA' || rawOfferStatus === 'EXPIRED';
 
+  const rawSellerOfferStatus = String(sellerOffer?.status || '').toUpperCase().trim();
+  const isSellerPendingOffer = rawSellerOfferStatus === 'ENVIADA' || rawSellerOfferStatus === 'PENDIENTE' || rawSellerOfferStatus === 'PENDING';
+  const isSellerAcceptedOffer = rawSellerOfferStatus === 'ACEPTADA' || rawSellerOfferStatus === 'ACCEPTED';
+  const isSellerRejectedOffer = rawSellerOfferStatus === 'RECHAZADA' || rawSellerOfferStatus === 'REJECTED';
+  const isSellerExpiredOffer = rawSellerOfferStatus === 'EXPIRADA' || rawSellerOfferStatus === 'EXPIRED';
+
   const hasKm = (moto.km !== null && moto.km !== undefined && moto.km !== '') || (moto.mileage !== null && moto.mileage !== undefined && moto.mileage !== '');
   const kmFormatted = hasKm ? `${Number(moto.km ?? moto.mileage).toLocaleString()} km` : 'No disponible';
 
@@ -306,9 +371,14 @@ const MotoDetailPage = () => {
     'Ubicación': moto.city || moto.location || 'No disponible',
   };
 
-  const isOwner = Boolean(user?.id && moto?.owner_id && String(user.id) === String(moto.owner_id));
-  const isBuyer = Boolean(user?.id && apartado?.buyer_id && String(user.id) === String(apartado.buyer_id));
+  const isOwner = isOwnerUser;
+  const isBuyer = Boolean(
+    user?.id &&
+    ((apartado?.buyer_id && String(user.id) === String(apartado.buyer_id)) ||
+     (userOffer?.buyer_id && String(user.id) === String(userOffer.buyer_id)))
+  );
   const isAuthorizedForCert = Boolean(user && (isBuyer || isOwner));
+  const currentNod = apartado?.nod || sellerOffer?.nod || userOffer?.nod || null;
 
   const handleOpenCertModal = () => {
     if (!user) {
@@ -772,7 +842,7 @@ const MotoDetailPage = () => {
               <h3 className="font-display font-bold text-white uppercase tracking-wide text-base flex items-center gap-2">
                 <BookmarkCheck size={18} className="text-red-brand" /> APARTADO
               </h3>
-              {apartado && (
+              {apartado && (isOwner || isBuyer) && (
                 <span className={`px-2.5 py-1 text-[10px] font-bold rounded-sm uppercase tracking-wider ${
                   apartado.status === 'REALIZADO' 
                     ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/30' 
@@ -787,50 +857,65 @@ const MotoDetailPage = () => {
               <div className="space-y-3">
                 <div className="bg-emerald-500/10 border border-emerald-500/30 p-4 rounded-sm text-xs space-y-2">
                   <div className="flex items-center gap-2 text-emerald-400 font-bold uppercase tracking-wider">
-                    <CheckCircle2 size={16} /> Apartado Realizado
+                    <CheckCircle2 size={16} /> {isOwner ? 'Apartado Registrado' : isBuyer ? 'Apartado Realizado' : 'Unidad Apartada'}
                   </div>
                   <p className="text-zinc-300 text-[11px] leading-relaxed">
-                    Tu apartado para esta unidad está activo en el sistema.
+                    {isOwner
+                      ? `Un comprador ha apartado tu motocicleta${currentNod ? ` (NOD: ${currentNod})` : ''}. Se encuentra en proceso de certificación.`
+                      : isBuyer
+                      ? `Tu apartado para esta unidad está activo en el sistema${currentNod ? ` (NOD: ${currentNod})` : ''}.`
+                      : 'Esta motocicleta cuenta con un apartado activo en proceso de certificación técnica y no está disponible para nuevos apartados.'}
                   </p>
                 </div>
 
-                {/* Certification Status from public.apartados */}
-                <div className="p-3 bg-[#0a0a0c] border border-white/10 rounded-sm text-xs space-y-1.5">
-                  <div className="text-[10px] text-zinc-500 uppercase tracking-wider font-bold">Estado de Certificación</div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-white font-medium">Dictamen:</span>
-                    <span className={`font-bold px-2 py-0.5 rounded text-[10px] uppercase ${
-                      certStatus === 'CERTIFICADA'
-                        ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' 
-                        : certStatus === 'RECHAZADA'
-                        ? 'bg-red-500/20 text-red-400 border border-red-500/30'
-                        : 'bg-amber-500/20 text-amber-400 border border-amber-500/30'
-                    }`}>
-                      {certStatus}
-                    </span>
+                {/* Certification Status from public.apartados - Exclusivo para partes de la operación */}
+                {(isOwner || isBuyer) && (
+                  <div className="p-3 bg-[#0a0a0c] border border-white/10 rounded-sm text-xs space-y-1.5">
+                    <div className="text-[10px] text-zinc-500 uppercase tracking-wider font-bold">Estado de Certificación</div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-white font-medium">Dictamen:</span>
+                      <span className={`font-bold px-2 py-0.5 rounded text-[10px] uppercase ${
+                        certStatus === 'CERTIFICADA'
+                          ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' 
+                          : certStatus === 'RECHAZADA'
+                          ? 'bg-red-500/20 text-red-400 border border-red-500/30'
+                          : 'bg-amber-500/20 text-amber-400 border border-amber-500/30'
+                      }`}>
+                        {certStatus}
+                      </span>
+                    </div>
+                    {isOwner && (
+                      <>
+                        {(apartado.certification_workshop || moto?.certification_workshop) && (
+                          <div className="flex items-center justify-between text-zinc-400 text-[11px]">
+                            <span>Taller:</span>
+                            <span className="text-zinc-200 truncate max-w-[180px]">{apartado.certification_workshop || moto?.certification_workshop}</span>
+                          </div>
+                        )}
+                        {(apartado.certification_appointment_at || moto?.certification_appointment_at) && (
+                          <div className="flex items-center justify-between text-zinc-400 text-[11px]">
+                            <span>Cita programada:</span>
+                            <span className="text-zinc-200">{new Date(apartado.certification_appointment_at || moto?.certification_appointment_at).toLocaleString('es-MX')}</span>
+                          </div>
+                        )}
+                        {(apartado.certification_appointment_status || moto?.certification_appointment_status) && (
+                          <div className="flex items-center justify-between text-zinc-400 text-[11px]">
+                            <span>Estado de cita:</span>
+                            <span className="text-zinc-200">{apartado.certification_appointment_status || moto?.certification_appointment_status}</span>
+                          </div>
+                        )}
+                      </>
+                    )}
                   </div>
-                  {isOwner && (
-                    <>
-                      {(apartado.certification_workshop || moto?.certification_workshop) && (
-                        <div className="flex items-center justify-between text-zinc-400 text-[11px]">
-                          <span>Taller:</span>
-                          <span className="text-zinc-200 truncate max-w-[180px]">{apartado.certification_workshop || moto?.certification_workshop}</span>
-                        </div>
-                      )}
-                      {(apartado.certification_appointment_at || moto?.certification_appointment_at) && (
-                        <div className="flex items-center justify-between text-zinc-400 text-[11px]">
-                          <span>Cita programada:</span>
-                          <span className="text-zinc-200">{new Date(apartado.certification_appointment_at || moto?.certification_appointment_at).toLocaleString('es-MX')}</span>
-                        </div>
-                      )}
-                      {(apartado.certification_appointment_status || moto?.certification_appointment_status) && (
-                        <div className="flex items-center justify-between text-zinc-400 text-[11px]">
-                          <span>Estado de cita:</span>
-                          <span className="text-zinc-200">{apartado.certification_appointment_status || moto?.certification_appointment_status}</span>
-                        </div>
-                      )}
-                    </>
-                  )}
+                )}
+              </div>
+            ) : isOwner ? (
+              <div className="space-y-2 text-xs">
+                <p className="text-zinc-300 leading-relaxed">
+                  Esta es tu motocicleta publicada. Cuando un comprador realice un apartado, verás aquí el registro del NOD y el estatus del proceso.
+                </p>
+                <div className="p-3 bg-[#0a0a0c] border border-white/5 rounded-sm text-zinc-400 text-[11px]">
+                  Estado actual: <span className="text-emerald-400 font-semibold uppercase">Publicación Activa</span>
                 </div>
               </div>
             ) : (
@@ -867,13 +952,25 @@ const MotoDetailPage = () => {
             )}
           </div>
 
-          {/* OFERTA DE COMPRA (ESTADOS DINÁMICOS SEGÚN OFERTA REAL) */}
-          {(hasApartado || userOffer) && (
+          {/* OFERTA DE COMPRA / ESTATUS DE OFERTA DE LA OPERACIÓN */}
+          {(isOwner ? (hasApartado || sellerOffer) : (isBuyer && (hasApartado || userOffer))) && (
             <div className="bg-[#111112] border border-white/5 rounded-md p-6 relative space-y-4">
               {/* Encabezado dinámico */}
               <div className="flex items-center justify-between pb-3 border-b border-white/5">
                 <h3 className="font-display font-bold text-white uppercase tracking-wide text-sm flex items-center gap-2">
-                  {isAcceptedOffer ? (
+                  {isOwner ? (
+                    isSellerAcceptedOffer ? (
+                      <ShieldCheck size={16} className="text-emerald-400" />
+                    ) : isSellerPendingOffer ? (
+                      <Shield size={16} className="text-amber-400" />
+                    ) : isSellerRejectedOffer ? (
+                      <Shield size={16} className="text-red-400" />
+                    ) : isSellerExpiredOffer ? (
+                      <Shield size={16} className="text-zinc-400" />
+                    ) : (
+                      <Shield size={16} className="text-red-brand" />
+                    )
+                  ) : isAcceptedOffer ? (
                     <ShieldCheck size={16} className="text-emerald-400" />
                   ) : isPendingOffer ? (
                     <Shield size={16} className="text-amber-400" />
@@ -884,36 +981,235 @@ const MotoDetailPage = () => {
                   ) : (
                     <Shield size={16} className="text-red-brand" />
                   )}
-                  {isAcceptedOffer
+                  {isOwner
+                    ? isSellerAcceptedOffer
+                      ? 'OFERTA ACEPTADA'
+                      : isSellerPendingOffer
+                      ? 'OFERTA RECIBIDA'
+                      : isSellerRejectedOffer
+                      ? 'OFERTA RECHAZADA'
+                      : isSellerExpiredOffer
+                      ? 'OFERTA EXPIRADA'
+                      : 'Estatus de Oferta'
+                    : isAcceptedOffer
                     ? 'OFERTA ACEPTADA'
                     : isPendingOffer
                     ? 'OFERTA ENVIADA'
                     : 'Oferta de Compra'}
                 </h3>
-                {isAcceptedOffer && (
-                  <span className="px-2.5 py-1 text-[10px] font-bold rounded-sm uppercase tracking-wider bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-                    Aceptada
-                  </span>
-                )}
-                {isPendingOffer && (
-                  <span className="px-2.5 py-1 text-[10px] font-bold rounded-sm uppercase tracking-wider bg-amber-500/10 text-amber-400 border border-amber-500/20">
-                    {rawOfferStatus === 'ENVIADA' ? 'Enviada' : 'Pendiente'}
-                  </span>
-                )}
-                {isRejectedOffer && (
-                  <span className="px-2.5 py-1 text-[10px] font-bold rounded-sm uppercase tracking-wider bg-red-500/10 text-red-400 border border-red-500/20">
-                    Rechazada
-                  </span>
-                )}
-                {isExpiredOffer && (
-                  <span className="px-2.5 py-1 text-[10px] font-bold rounded-sm uppercase tracking-wider bg-zinc-500/10 text-zinc-400 border border-zinc-500/20">
-                    Expirada
-                  </span>
+                {isOwner ? (
+                  isSellerAcceptedOffer ? (
+                    <span className="px-2.5 py-1 text-[10px] font-bold rounded-sm uppercase tracking-wider bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                      Aceptada
+                    </span>
+                  ) : isSellerPendingOffer ? (
+                    <span className="px-2.5 py-1 text-[10px] font-bold rounded-sm uppercase tracking-wider bg-amber-500/10 text-amber-400 border border-amber-500/20">
+                      Pendiente
+                    </span>
+                  ) : isSellerRejectedOffer ? (
+                    <span className="px-2.5 py-1 text-[10px] font-bold rounded-sm uppercase tracking-wider bg-red-500/10 text-red-400 border border-red-500/20">
+                      Rechazada
+                    </span>
+                  ) : isSellerExpiredOffer ? (
+                    <span className="px-2.5 py-1 text-[10px] font-bold rounded-sm uppercase tracking-wider bg-zinc-500/10 text-zinc-400 border border-zinc-500/20">
+                      Expirada
+                    </span>
+                  ) : (
+                    <span className="px-2.5 py-1 text-[10px] font-bold rounded-sm uppercase tracking-wider bg-zinc-500/10 text-zinc-400 border border-zinc-500/20">
+                      En espera
+                    </span>
+                  )
+                ) : (
+                  isAcceptedOffer ? (
+                    <span className="px-2.5 py-1 text-[10px] font-bold rounded-sm uppercase tracking-wider bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                      Aceptada
+                    </span>
+                  ) : isPendingOffer ? (
+                    <span className="px-2.5 py-1 text-[10px] font-bold rounded-sm uppercase tracking-wider bg-amber-500/10 text-amber-400 border border-amber-500/20">
+                      {rawOfferStatus === 'ENVIADA' ? 'Enviada' : 'Pendiente'}
+                    </span>
+                  ) : isRejectedOffer ? (
+                    <span className="px-2.5 py-1 text-[10px] font-bold rounded-sm uppercase tracking-wider bg-red-500/10 text-red-400 border border-red-500/20">
+                      Rechazada
+                    </span>
+                  ) : isExpiredOffer ? (
+                    <span className="px-2.5 py-1 text-[10px] font-bold rounded-sm uppercase tracking-wider bg-zinc-500/10 text-zinc-400 border border-zinc-500/20">
+                      Expirada
+                    </span>
+                  ) : null
                 )}
               </div>
 
-              {/* ESTADO 1: ENVIADA / PENDIENTE (Ocultar formulario, mostrar oferta y estado, no permitir otra oferta) */}
-              {isPendingOffer ? (
+              {/* VISTA SEGÚN ROL: EL VENDEDOR SOLO VE EL ESTATUS RECICLADO DEL MISMO NOD, NUNCA TABLAS DE OFERTA */}
+              {isOwner ? (
+                <div className="space-y-4">
+                  <div className="p-4 bg-[#0a0a0c] border border-white/5 rounded-sm space-y-3">
+                    {currentNod && (
+                      <div className="flex items-center justify-between text-xs pb-2 border-b border-white/5">
+                        <span className="text-zinc-400 font-medium">Operación (NOD):</span>
+                        <span className="text-red-brand font-mono font-bold tracking-wider">{currentNod}</span>
+                      </div>
+                    )}
+
+                    {sellerOffer ? (
+                      <>
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs text-zinc-400">Monto ofertado:</span>
+                          <span className={`text-lg font-display font-bold ${isSellerAcceptedOffer ? 'text-emerald-400' : 'text-white'}`}>
+                            ${Number(sellerOffer.amount || sellerOffer.offeredAmount || 0).toLocaleString()} MXN
+                          </span>
+                        </div>
+                        <div className="flex items-center justify-between text-xs pt-2.5 border-t border-white/5">
+                          <span className="text-zinc-400">Estado de la oferta:</span>
+                          <span className={`font-semibold uppercase text-[11px] flex items-center gap-1.5 ${
+                            isSellerAcceptedOffer
+                              ? 'text-emerald-400'
+                              : isSellerPendingOffer
+                              ? 'text-amber-400'
+                              : isSellerRejectedOffer
+                              ? 'text-red-400'
+                              : 'text-zinc-400'
+                          }`}>
+                            {isSellerAcceptedOffer && <CheckCircle2 size={13} />}
+                            {isSellerPendingOffer && <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />}
+                            {isSellerRejectedOffer && <AlertCircle size={13} />}
+                            {isSellerExpiredOffer && <Clock size={13} />}
+                            {isSellerAcceptedOffer
+                              ? 'Aceptada por ti'
+                              : isSellerPendingOffer
+                              ? 'Pendiente de tu respuesta'
+                              : isSellerRejectedOffer
+                              ? 'Rechazada por ti'
+                              : isSellerExpiredOffer
+                              ? 'Expirada sin respuesta'
+                              : rawSellerOfferStatus || 'En revisión'}
+                          </span>
+                        </div>
+                        {sellerOffer.package && (
+                          <div className="flex items-center justify-between text-xs pt-2.5 border-t border-white/5">
+                            <span className="text-zinc-400">Paquete de protección:</span>
+                            <span className="text-zinc-200 uppercase font-semibold text-[11px]">
+                              {sellerOffer.package === 'basico'
+                                ? 'Básico'
+                                : sellerOffer.package === 'plus'
+                                ? 'Plus'
+                                : sellerOffer.package === 'total'
+                                ? 'Total'
+                                : sellerOffer.package}
+                            </span>
+                          </div>
+                        )}
+                        {sellerOffer.created_at && (
+                          <div className="flex items-center justify-between text-xs pt-2.5 border-t border-white/5">
+                            <span className="text-zinc-400">Fecha de recepción:</span>
+                            <span className="text-zinc-300 text-[11px]">
+                              {new Date(sellerOffer.created_at).toLocaleDateString('es-MX', {
+                                day: 'numeric',
+                                month: 'short',
+                                year: 'numeric',
+                              })}
+                            </span>
+                          </div>
+                        )}
+                      </>
+                    ) : (
+                      <div className="py-2 text-center space-y-1">
+                        <div className="text-xs text-zinc-300">
+                          {currentNod ? `Apartado activo registrado (${currentNod}).` : 'Apartado activo registrado.'}
+                        </div>
+                        <div className="text-[11px] text-zinc-500">
+                          En espera de que el comprador capture su oferta de compra formal.
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Mensajes y CTAs para el vendedor */}
+                  {isSellerPendingOffer ? (
+                    <>
+                      <div className="p-3.5 bg-amber-500/10 border border-amber-500/20 rounded-sm text-xs space-y-1">
+                        <div className="flex items-center gap-1.5 text-amber-400 font-bold uppercase tracking-wider text-[11px]">
+                          <Clock size={13} /> Oferta pendiente de tu decisión
+                        </div>
+                        <p className="text-zinc-300 text-[11px] leading-relaxed">
+                          Has recibido esta propuesta de compra para {currentNod ? `el ${currentNod}` : 'tu motocicleta'}. Como vendedor de la operación, puedes aceptarla o rechazarla directamente en tu panel.
+                        </p>
+                      </div>
+                      <Link
+                        to="/panel"
+                        className="btn-red w-full inline-flex items-center justify-center gap-2 text-xs font-bold tracking-widest uppercase px-5 py-3.5 rounded-sm shadow-lg cursor-pointer"
+                      >
+                        <FileText size={14} /> Revisar Oferta en Mi Panel
+                      </Link>
+                    </>
+                  ) : isSellerAcceptedOffer ? (
+                    <>
+                      <div className="p-3.5 bg-emerald-500/10 border border-emerald-500/20 rounded-sm text-xs space-y-1">
+                        <div className="flex items-center gap-1.5 text-emerald-400 font-bold uppercase tracking-wider text-[11px]">
+                          <CheckCircle2 size={13} /> Oferta aceptada
+                        </div>
+                        <p className="text-zinc-300 text-[11px] leading-relaxed">
+                          Aceptaste la propuesta de compra para {currentNod ? `el ${currentNod}` : 'esta motocicleta'}. Continúa con la firma de contrato y seguimiento de entrega en tu panel de vendedor.
+                        </p>
+                      </div>
+                      <Link
+                        to="/panel"
+                        className="btn-red w-full inline-flex items-center justify-center gap-2 text-xs font-bold tracking-widest uppercase px-5 py-3.5 rounded-sm shadow-lg cursor-pointer"
+                      >
+                        <FileText size={14} /> Ir a Mi Panel de Vendedor
+                      </Link>
+                    </>
+                  ) : isSellerRejectedOffer ? (
+                    <>
+                      <div className="p-3.5 bg-red-500/10 border border-red-500/20 rounded-sm text-xs space-y-1.5">
+                        <div className="flex items-center gap-1.5 text-red-400 font-bold uppercase tracking-wider text-[11px]">
+                          <AlertCircle size={13} /> Oferta rechazada por ti
+                        </div>
+                        {sellerOffer?.message ? (
+                          <p className="text-zinc-300 text-[11px] leading-relaxed">
+                            <strong className="text-zinc-400">Motivo enviado:</strong> {sellerOffer.message}
+                          </p>
+                        ) : (
+                          <p className="text-zinc-300 text-[11px] leading-relaxed">
+                            Rechazaste la propuesta de compra anterior. Se notificó al comprador para que pueda formular una nueva oferta.
+                          </p>
+                        )}
+                      </div>
+                      <Link
+                        to="/panel"
+                        className="btn-outline w-full inline-flex items-center justify-center gap-2 text-xs font-bold tracking-widest uppercase px-5 py-3 rounded-sm cursor-pointer"
+                      >
+                        <FileText size={13} /> Ver en Mi Panel de Vendedor
+                      </Link>
+                    </>
+                  ) : isSellerExpiredOffer ? (
+                    <>
+                      <div className="p-3.5 bg-zinc-500/10 border border-zinc-500/20 rounded-sm text-xs space-y-1">
+                        <div className="flex items-center gap-1.5 text-zinc-400 font-bold uppercase tracking-wider text-[11px]">
+                          <Clock size={13} /> Oferta expirada
+                        </div>
+                        <p className="text-zinc-300 text-[11px] leading-relaxed">
+                          El tiempo para responder a la oferta de este NOD concluyó.
+                        </p>
+                      </div>
+                      <Link
+                        to="/panel"
+                        className="btn-outline w-full inline-flex items-center justify-center gap-2 text-xs font-bold tracking-widest uppercase px-5 py-3 rounded-sm cursor-pointer"
+                      >
+                        <FileText size={13} /> Ver en Mi Panel de Vendedor
+                      </Link>
+                    </>
+                  ) : (
+                    <Link
+                      to="/panel"
+                      className="btn-outline w-full inline-flex items-center justify-center gap-2 text-xs font-bold tracking-widest uppercase px-5 py-3 rounded-sm cursor-pointer"
+                    >
+                      <FileText size={13} /> Ver en Mi Panel de Vendedor
+                    </Link>
+                  )}
+                </div>
+              ) : isPendingOffer ? (
+                /* ESTADO 1: ENVIADA / PENDIENTE (Ocultar formulario, mostrar oferta y estado, no permitir otra oferta) */
                 <div className="space-y-4">
                   <div className="p-4 bg-[#0a0a0c] border border-white/5 rounded-sm space-y-3">
                     <div className="flex items-center justify-between">
