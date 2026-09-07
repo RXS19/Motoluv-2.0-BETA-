@@ -945,63 +945,47 @@ export const apartadoApi = {
       try {
         const { data: { session } } = await supabase.auth.getSession();
         if (session?.user?.id) {
-          // 1. Check as buyer for active apartado
+          // 1. Check as buyer
           const { data: buyerData, error: buyerErr } = await supabase
             .from('apartados')
             .select('*')
             .eq('buyer_id', session.user.id)
             .eq('moto_id', String(motoId))
-            .in('status', ['REALIZADO', 'ACTIVO', 'PROGRAMADA', 'EN_PROCESO'])
             .order('created_at', { ascending: false })
             .limit(1);
 
           if (!buyerErr && Array.isArray(buyerData) && buyerData.length > 0) {
             const item = buyerData[0];
-            if (item?.nod) {
-              const mCert = await certificationApi.getByNodOrMoto({ nod: item.nod, motoId });
-              if (mCert) {
-                item.certification_appointment_at = mCert.certification_appointment_at;
-                item.certification_appointment_status = mCert.certification_appointment_status;
-                item.certification_workshop = mCert.certification_workshop;
-                item.certification_workshop_id = mCert.certification_workshop_id;
-                item.certification_status = mCert.certification_status;
-              }
+            const mCert = await getMotoCertificationAndAppointment(motoId);
+            if (mCert?.isProgrammed || mCert?.isCertified) {
+              item.certification_appointment_at = mCert.certification_appointment_at;
+              item.certification_appointment_status = mCert.certification_appointment_status;
+              item.certification_workshop = mCert.certification_workshop;
+              item.certification_workshop_id = mCert.certification_workshop_id;
+              item.certification_status = mCert.certification_status;
             }
             return item;
           }
 
-          // 2. Check as owner/seller ONLY if the authenticated user is the owner of this moto
-          const { data: motoData, error: motoErr } = await supabase
-            .from('motos')
-            .select('owner_id')
-            .eq('id', String(motoId))
-            .maybeSingle();
+          // 2. Check as owner/seller
+          const { data: ownerData, error: ownerErr } = await supabase
+            .from('apartados')
+            .select('*')
+            .eq('moto_id', String(motoId))
+            .order('created_at', { ascending: false })
+            .limit(1);
 
-          if (!motoErr && motoData && motoData.owner_id === session.user.id) {
-            const { data: ownerData, error: ownerErr } = await supabase
-              .from('apartados')
-              .select('id, nod, moto_id, status, created_at, certification_appointment_at, certification_appointment_status, certification_workshop, certification_workshop_id, certification_status')
-              .eq('moto_id', String(motoId))
-              .in('status', ['REALIZADO', 'ACTIVO', 'PROGRAMADA', 'EN_PROCESO'])
-              .order('created_at', { ascending: false })
-              .limit(1);
-
-            if (!ownerErr && Array.isArray(ownerData) && ownerData.length > 0) {
-              const item = ownerData[0];
-              // Seller Privacy: only return status, NOD and certification details.
-              // Never expose buyer_id, buyer_name, or personal data to seller.
-              if (item?.nod) {
-                const mCert = await certificationApi.getByNodOrMoto({ nod: item.nod, motoId });
-                if (mCert) {
-                  item.certification_appointment_at = mCert.certification_appointment_at;
-                  item.certification_appointment_status = mCert.certification_appointment_status;
-                  item.certification_workshop = mCert.certification_workshop;
-                  item.certification_workshop_id = mCert.certification_workshop_id;
-                  item.certification_status = mCert.certification_status;
-                }
-              }
-              return item;
+          if (!ownerErr && Array.isArray(ownerData) && ownerData.length > 0) {
+            const item = ownerData[0];
+            const mCert = await getMotoCertificationAndAppointment(motoId);
+            if (mCert?.isProgrammed || mCert?.isCertified) {
+              item.certification_appointment_at = mCert.certification_appointment_at;
+              item.certification_appointment_status = mCert.certification_appointment_status;
+              item.certification_workshop = mCert.certification_workshop;
+              item.certification_workshop_id = mCert.certification_workshop_id;
+              item.certification_status = mCert.certification_status;
             }
+            return item;
           }
         }
       } catch (err) {
@@ -1022,21 +1006,18 @@ export const apartadoApi = {
             .select('*')
             .eq('buyer_id', session.user.id)
             .eq('moto_id', String(motoId))
-            .in('status', ['REALIZADO', 'ACTIVO', 'PROGRAMADA', 'EN_PROCESO'])
             .order('created_at', { ascending: false })
             .limit(1);
 
           if (!error && Array.isArray(data) && data.length > 0) {
             const item = data[0];
-            if (item?.nod) {
-              const mCert = await certificationApi.getByNodOrMoto({ nod: item.nod, motoId });
-              if (mCert) {
-                item.certification_appointment_at = mCert.certification_appointment_at;
-                item.certification_appointment_status = mCert.certification_appointment_status;
-                item.certification_workshop = mCert.certification_workshop;
-                item.certification_workshop_id = mCert.certification_workshop_id;
-                item.certification_status = mCert.certification_status;
-              }
+            const mCert = await getMotoCertificationAndAppointment(motoId);
+            if (mCert?.isProgrammed || mCert?.isCertified) {
+              item.certification_appointment_at = mCert.certification_appointment_at;
+              item.certification_appointment_status = mCert.certification_appointment_status;
+              item.certification_workshop = mCert.certification_workshop;
+              item.certification_workshop_id = mCert.certification_workshop_id;
+              item.certification_status = mCert.certification_status;
             }
             return item;
           }
@@ -1090,6 +1071,23 @@ export const apartadoApi = {
             });
 
             const filtered = normalizedData.filter((a) => a.moto?.owner_id === session.user.id);
+            const buyerIds = [...new Set(filtered.map((a) => a.buyer_id).filter(Boolean))];
+            const profilesMap = {};
+            if (buyerIds.length > 0) {
+              try {
+                const { data: profs } = await supabase
+                  .from('profiles')
+                  .select('id, name, full_name, email')
+                  .in('id', buyerIds);
+                if (Array.isArray(profs)) {
+                  profs.forEach((p) => {
+                    profilesMap[p.id] = p.full_name || p.name || (p.email ? p.email.split('@')[0] : null);
+                  });
+                }
+              } catch (e) {
+                console.warn('Error fetching buyer profiles:', e);
+              }
+            }
 
             // 1 NOD = 1 operación = 1 contrato
             // Query contracts and operation_tracking strictly by NOD (never by moto_id)
@@ -1133,17 +1131,9 @@ export const apartadoApi = {
               const trackingObj = itemNod ? (trackingMap[itemNod] || a.tracking || a.operation_tracking || null) : (a.tracking || a.operation_tracking || null);
 
               return {
-                id: a.id,
+                ...a,
                 nod: itemNod,
-                status: a.status,
-                created_at: a.created_at,
-                apartado: {
-                  id: a.id,
-                  nod: itemNod,
-                  status: a.status,
-                  created_at: a.created_at,
-                  moto_id: a.moto_id,
-                },
+                apartado: a,
                 contract: contractObj,
                 tracking: trackingObj,
                 contract_status: contractObj?.contract_status || a.contract_status || null,
@@ -1158,6 +1148,7 @@ export const apartadoApi = {
                 moto_city: a.moto_city || motoObj?.city,
                 moto_image: motoObj?.images?.[0] || motoObj?.image || a.moto_image,
                 seller_name: motoObj?.owner_name || session.user.user_metadata?.full_name || 'Vendedor',
+                buyer_name: profilesMap[a.buyer_id] || a.buyer_name || 'Comprador Motoluv',
                 certification_appointment_at: a.certification_appointment_at || null,
                 certification_appointment_status: a.certification_appointment_status || 'Pendiente',
                 certification_workshop: a.certification_workshop || null,
@@ -1361,33 +1352,62 @@ export const apartadoApi = {
 
 export const certificationApi = {
   getByNodOrMoto: async ({ nod, motoId }) => {
-    // Operation MUST be resolved strictly by NOD.
-    // moto_id only identifies the motorcycle.
-    // Eliminates any data[0], latest result, or fallback that can mix operations.
-    const cleanNod = nod ? String(nod).trim() : null;
-    if (!cleanNod) {
-      return null;
-    }
-
+    if (!nod && !motoId) return null;
     if (isSupabaseConfigured && supabase) {
       try {
         const { data: { session } } = await supabase.auth.getSession();
         if (!session?.user?.id) return null;
 
-        let query = supabase
-          .from('moto_certifications')
-          .select('*')
-          .eq('nod', cleanNod);
-
+        const cleanNod = nod ? String(nod).trim() : null;
         const cleanMotoId = motoId ? String(motoId).trim() : null;
-        if (cleanMotoId) {
-          query = query.eq('moto_id', cleanMotoId);
+
+        // 1. Regla NOD: Cuando exista NOD, la certificación DEBE resolverse por:
+        //    NOD + moto_id y, cuando sea necesario, por NOD.
+        //    NO utilizar moto_id como fallback cuando ya existe un NOD disponible
+        //    para evitar mezclar certificaciones de diferentes operaciones.
+        if (cleanNod) {
+          if (cleanMotoId) {
+            const { data, error } = await supabase
+              .from('moto_certifications')
+              .select('*')
+              .eq('nod', cleanNod)
+              .eq('moto_id', cleanMotoId)
+              .order('created_at', { ascending: false })
+              .limit(1);
+
+            if (!error && Array.isArray(data) && data.length > 0) {
+              return data[0];
+            }
+          }
+
+          const { data, error } = await supabase
+            .from('moto_certifications')
+            .select('*')
+            .eq('nod', cleanNod)
+            .order('created_at', { ascending: false })
+            .limit(1);
+
+          if (!error && Array.isArray(data) && data.length > 0) {
+            return data[0];
+          }
+
+          // Si existe NOD y no hay registro en moto_certifications para ese NOD,
+          // NUNCA hacer fallback a moto_id para no traer certificados de otra operación.
+          return null;
         }
 
-        const { data, error } = await query.maybeSingle();
+        // 2. Solo si NO existe NOD, buscar por moto_id
+        if (cleanMotoId) {
+          const { data, error } = await supabase
+            .from('moto_certifications')
+            .select('*')
+            .eq('moto_id', cleanMotoId)
+            .order('created_at', { ascending: false })
+            .limit(1);
 
-        if (!error && data) {
-          return data;
+          if (!error && Array.isArray(data) && data.length > 0) {
+            return data[0];
+          }
         }
       } catch (err) {
         console.warn('Error querying moto_certifications in Supabase:', err);
@@ -1409,7 +1429,6 @@ export const offerApi = {
           buyer_id: session.user.id,
           amount: Number(data.amount) || 0,
           status: 'ENVIADA',
-          ...(data.nod ? { nod: String(data.nod) } : {}),
           ...(data.package ? { package: data.package } : { package: null }),
         };
 
@@ -1456,7 +1475,6 @@ export const offerApi = {
     const payload = {
       moto_id: data.moto_id,
       amount: Number(data.amount) || 0,
-      ...(data.nod ? { nod: String(data.nod) } : {}),
       ...(data.package ? { package: data.package } : { package: null }),
     };
     return api.post('/offers', payload).then((r) => r.data);
@@ -1503,36 +1521,23 @@ export const offerApi = {
       try {
         const { data: { session } } = await supabase.auth.getSession();
         if (session?.user?.id) {
-          // Seller Privacy: query strictly for this seller's received offers. Never query all offers.
-          // Expose ONLY: Monto Ofertado, status, moto identity and necessary actions.
-          // NEVER expose buyer_id, buyer_name, buyer personal data, package, history, counts, or other offers.
           const { data, error } = await supabase
             .from('offers')
-            .select('id, nod, moto_id, amount, status, message, created_at, moto:motos(id, brand, model, price, image, images)')
-            .eq('seller_id', session.user.id)
+            .select('*, moto:motos(*)')
             .order('created_at', { ascending: false });
 
           if (!error && Array.isArray(data)) {
-            return data.map((o) => {
-              const motoObj = o.moto || {};
-              return {
-                id: o.id,
-                nod: o.nod || null,
-                moto_id: o.moto_id,
+            return data
+              .filter((o) => o.moto?.owner_id === session.user.id || o.seller_id === session.user.id)
+              .map((o) => ({
+                ...o,
                 status: o.status || 'ENVIADA',
-                motoBrand: motoObj.brand || o.moto_brand || '',
-                motoModel: motoObj.model || o.moto_model || '',
-                moto_brand: motoObj.brand || o.moto_brand || '',
-                moto_model: motoObj.model || o.moto_model || '',
-                moto_image: motoObj.images?.[0] || motoObj.image || o.moto_image || '',
-                originalPrice: motoObj.price || null,
-                original_price: motoObj.price || null,
-                amount: o.amount,
+                motoBrand: o.moto?.brand,
+                motoModel: o.moto?.model,
+                originalPrice: o.moto?.price,
                 offeredAmount: o.amount,
-                message: o.message || null,
-                created_at: o.created_at,
-              };
-            });
+                buyerName: o.buyer_name || 'Comprador',
+              }));
           }
         }
       } catch (err) {

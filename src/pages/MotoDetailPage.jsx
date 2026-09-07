@@ -143,21 +143,9 @@ const MotoDetailPage = () => {
     try {
       const myOffers = await offerApi.mine();
       if (Array.isArray(myOffers)) {
-        // Operation resolved strictly by NOD + buyer_id
-        let currentOffer = null;
-        if (apartado?.nod) {
-          currentOffer = myOffers.find(
-            (o) => o.nod === apartado.nod && (String(o.buyer_id) === String(user.id) || !o.buyer_id)
-          );
-        }
-        if (!currentOffer && !apartado) {
-          // If no apartado created yet, match buyer's direct offer for this moto
-          currentOffer = myOffers.find(
-            (o) =>
-              (String(o.buyer_id) === String(user.id) || !o.buyer_id) &&
-              String(o.moto_id || o.moto?.id) === String(moto.id)
-          );
-        }
+        const currentOffer = myOffers.find(
+          (o) => String(o.moto_id || o.moto?.id) === String(moto.id)
+        );
         setUserOffer(currentOffer || null);
       } else {
         setUserOffer(null);
@@ -174,18 +162,13 @@ const MotoDetailPage = () => {
       return;
     }
     try {
-      // Operation MUST be resolved strictly by NOD + seller_id.
-      // moto_id only identifies the motorcycle.
-      // NEVER use data[0], latest result, or fallback to arbitrary offers on moto_id!
-      const targetNod = apartado?.nod || null;
-      if (!targetNod) {
-        setSellerOffer(null);
-        return;
-      }
-
       const received = await offerApi.received();
       if (Array.isArray(received) && received.length > 0) {
-        const found = received.find((o) => o.nod === targetNod);
+        const found = received.find(
+          (o) =>
+            (apartado?.nod && o.nod === apartado.nod) ||
+            String(o.moto_id || o.moto?.id) === String(moto.id)
+        );
         if (found) {
           setSellerOffer(found);
           return;
@@ -195,13 +178,13 @@ const MotoDetailPage = () => {
       if (isSupabaseConfigured && supabase) {
         const { data, error } = await supabase
           .from('offers')
-          .select('id, nod, moto_id, amount, status, message, created_at')
-          .eq('nod', targetNod)
-          .eq('seller_id', user.id)
-          .maybeSingle();
+          .select('*')
+          .eq('moto_id', String(moto.id))
+          .order('created_at', { ascending: false });
 
-        if (!error && data) {
-          setSellerOffer(data);
+        if (!error && Array.isArray(data) && data.length > 0) {
+          const match = (apartado?.nod ? data.find((o) => o.nod === apartado.nod) : null) || data[0];
+          setSellerOffer(match || null);
           return;
         }
       }
@@ -1102,6 +1085,20 @@ const MotoDetailPage = () => {
                               : rawSellerOfferStatus || 'En revisión'}
                           </span>
                         </div>
+                        {sellerOffer.package && (
+                          <div className="flex items-center justify-between text-xs pt-2.5 border-t border-white/5">
+                            <span className="text-zinc-400">Paquete de protección:</span>
+                            <span className="text-zinc-200 uppercase font-semibold text-[11px]">
+                              {sellerOffer.package === 'basico'
+                                ? 'Básico'
+                                : sellerOffer.package === 'plus'
+                                ? 'Plus'
+                                : sellerOffer.package === 'total'
+                                ? 'Total'
+                                : sellerOffer.package}
+                            </span>
+                          </div>
+                        )}
                         {sellerOffer.created_at && (
                           <div className="flex items-center justify-between text-xs pt-2.5 border-t border-white/5">
                             <span className="text-zinc-400">Fecha de recepción:</span>
@@ -1277,7 +1274,7 @@ const MotoDetailPage = () => {
                 <div className="space-y-4">
                   <div className="p-4 bg-emerald-500/5 border border-emerald-500/20 rounded-sm space-y-3">
                     <div className="flex items-center justify-between">
-                      <span className="text-xs text-zinc-400">Monto Pactado:</span>
+                      <span className="text-xs text-zinc-400">Monto acordado:</span>
                       <span className="text-xl font-display font-bold text-emerald-400">
                         ${Number(userOffer?.amount || 0).toLocaleString()} MXN
                       </span>

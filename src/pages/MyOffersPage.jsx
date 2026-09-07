@@ -55,7 +55,7 @@ const OfferRow = ({ offer, isSeller, onUpdate, onOpenReject }) => {
               {offer.moto_brand || 'Moto'} {offer.moto_model || ''} {offer.moto_year || ''}
             </h4>
             <p className="text-xs text-zinc-400">
-              {isSeller ? (offer.nod ? `Operación: ${offer.nod}` : 'Propuesta recibida') : `Vendedor: ${offer.seller_name || 'Vendedor'}`}
+              {isSeller ? `De: ${offer.buyer_name || 'Comprador interesado'}` : `Vendedor: ${offer.seller_name || 'Vendedor'}`}
             </p>
           </div>
         </div>
