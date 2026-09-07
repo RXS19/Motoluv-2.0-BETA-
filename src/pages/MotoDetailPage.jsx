@@ -1065,7 +1065,9 @@ const MotoDetailPage = () => {
                     {sellerOffer ? (
                       <>
                         <div className="flex items-center justify-between">
-                          <span className="text-xs text-zinc-400">Monto ofertado:</span>
+                          <span className="text-xs text-zinc-400">
+                            {isSellerAcceptedOffer ? 'Monto Pactado:' : 'Monto ofertado:'}
+                          </span>
                           <span className={`text-lg font-display font-bold ${isSellerAcceptedOffer ? 'text-emerald-400' : 'text-white'}`}>
                             ${Number(sellerOffer.amount || sellerOffer.offeredAmount || 0).toLocaleString()} MXN
                           </span>
