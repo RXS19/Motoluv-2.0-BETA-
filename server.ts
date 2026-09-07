@@ -208,6 +208,7 @@ interface Moto {
 
 interface Offer {
   id: string;
+  nod?: string | null;
   moto_id: string;
   buyer_id: string;
   buyer_name: string;
@@ -216,10 +217,13 @@ interface Offer {
   moto_model: string;
   moto_image?: string;
   amount: number;
-  package: 'basico' | 'plus' | 'total';
+  original_price?: number | null;
+  originalPrice?: number | null;
+  package: 'basico' | 'plus' | 'total' | string;
   message: string;
-  status: 'pending' | 'accepted' | 'rejected' | 'completed';
+  status: 'pending' | 'accepted' | 'rejected' | 'completed' | string;
   created_at: string;
+  [key: string]: any;
 }
 
 interface PartnerApp {
@@ -523,10 +527,17 @@ api.get('/auth/me', authenticateToken, (req, res) => {
 
     list.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
     const max = limit ? parseInt(String(limit), 10) : 100;
-    const result = list.slice(0, max).map((m: any) => ({
-      ...m,
-      is_apartada: m.apartado_status === 'APARTADA' || Boolean(m.is_apartada),
-    }));
+    const result = list.slice(0, max).map((m: any) => {
+      const copy = {
+        ...m,
+        is_apartada: m.apartado_status === 'APARTADA' || Boolean(m.is_apartada),
+      };
+      // Buyer Privacy: do not expose seller's advertising/boost package info
+      delete copy.boost_tier;
+      delete copy.boost_package;
+      delete copy.is_boosted;
+      return copy;
+    });
     return res.json(result);
   });
 
@@ -535,12 +546,17 @@ api.get('/auth/me', authenticateToken, (req, res) => {
     if (!moto) return res.status(404).json({ detail: 'Motocicleta no encontrada' });
     const isApartada = moto.apartado_status === 'APARTADA' || Boolean(moto.is_apartada);
     const sellerIdentityVerificationStatus = moto.seller_identity_verification_status || moto.identity_verification_status || 'unverified';
-    return res.json({
+    const motoCopy = {
       ...moto,
       is_apartada: isApartada,
       seller_identity_verification_status: sellerIdentityVerificationStatus,
       identity_verification_status: sellerIdentityVerificationStatus,
-    });
+    };
+    // Buyer Privacy: do not expose seller's advertising/boost package info to buyers
+    delete motoCopy.boost_tier;
+    delete motoCopy.boost_package;
+    delete motoCopy.is_boosted;
+    return res.json(motoCopy);
   });
 
   api.post('/motos/:id/views', (req, res) => {
@@ -822,7 +838,7 @@ api.get('/auth/me', authenticateToken, (req, res) => {
   // Offer Routes
   api.post('/offers', authenticateToken, (req, res) => {
     const user = (req as any).user as User;
-    const { moto_id, amount, package: pkg, message, is_apartado } = req.body;
+    const { moto_id, amount, package: pkg, message, is_apartado, nod } = req.body;
     const moto = db.motos.get(moto_id);
     if (!moto) return res.status(404).json({ detail: 'Moto no encontrada' });
     if (moto.owner_id === user.id) {
@@ -835,6 +851,7 @@ api.get('/auth/me', authenticateToken, (req, res) => {
 
     const offer: any = {
       id,
+      nod: nod || null,
       moto_id,
       buyer_id: user.id,
       buyer_name: user.name,
@@ -861,6 +878,7 @@ api.get('/auth/me', authenticateToken, (req, res) => {
         try {
           await supabaseServer.from('offers').insert([{
             id: offer.id,
+            nod: offer.nod,
             moto_id: offer.moto_id,
             buyer_id: offer.buyer_id,
             buyer_name: offer.buyer_name,
@@ -889,11 +907,12 @@ api.get('/auth/me', authenticateToken, (req, res) => {
           .eq('buyer_id', user.id);
         if (!error && Array.isArray(supaOffers)) {
           for (const o of supaOffers) {
-            const existing = db.offers.get(o.id) || {};
+            const existing = (db.offers.get(o.id) || {}) as any;
             const moto = db.motos.get(o.moto_id);
             db.offers.set(o.id, {
               ...existing,
               ...o,
+              nod: o.nod || existing.nod || null,
               buyer_id: o.buyer_id,
               seller_id: o.seller_id,
               moto_id: o.moto_id,
@@ -921,24 +940,24 @@ api.get('/auth/me', authenticateToken, (req, res) => {
       try {
         const { data: supaOffers, error } = await supabaseServer
           .from('offers')
-          .select('*')
+          .select('id, nod, moto_id, amount, status, message, created_at')
           .eq('seller_id', user.id);
         if (!error && Array.isArray(supaOffers)) {
           for (const o of supaOffers) {
-            const existing = db.offers.get(o.id) || {};
+            const existing = (db.offers.get(o.id) || {}) as any;
             const moto = db.motos.get(o.moto_id);
             db.offers.set(o.id, {
               ...existing,
               ...o,
-              buyer_id: o.buyer_id,
-              buyer_name: o.buyer_name || 'Comprador interesado',
-              seller_id: o.seller_id,
+              nod: o.nod || existing.nod || null,
+              seller_id: user.id,
               moto_id: o.moto_id,
-              moto_brand: o.moto_brand || moto?.brand || '',
-              moto_model: o.moto_model || moto?.model || '',
-              moto_image: o.moto_image || moto?.image || '',
+              moto_brand: moto?.brand || existing.moto_brand || '',
+              moto_model: moto?.model || existing.moto_model || '',
+              moto_image: moto?.image || existing.moto_image || '',
               amount: o.amount,
               status: o.status,
+              message: o.message || null,
               created_at: o.created_at,
             });
           }
@@ -947,8 +966,29 @@ api.get('/auth/me', authenticateToken, (req, res) => {
         console.warn('Supabase /my/received-offers error:', err?.message || err);
       }
     }
-    const list = Array.from(db.offers.values()).filter((o) => o.seller_id === user.id);
-    list.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+    // Seller Privacy: ONLY return Monto Ofertado, status, moto identity and necessary actions.
+    // NEVER expose buyer_id, buyer_name, buyer personal data, buyer's package, history, counts, or other offers.
+    const list = Array.from(db.offers.values())
+      .filter((o) => o.seller_id === user.id)
+      .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+      .map((o) => {
+        const moto = db.motos.get(o.moto_id);
+        return {
+          id: o.id,
+          nod: o.nod || null,
+          moto_id: o.moto_id,
+          moto_brand: o.moto_brand || moto?.brand || '',
+          moto_model: o.moto_model || moto?.model || '',
+          moto_image: o.moto_image || moto?.image || '',
+          amount: o.amount,
+          offeredAmount: o.amount,
+          original_price: moto?.price || o.original_price || null,
+          originalPrice: moto?.price || o.originalPrice || null,
+          status: o.status,
+          message: o.message || null,
+          created_at: o.created_at,
+        };
+      });
     return res.json(list);
   });
 
