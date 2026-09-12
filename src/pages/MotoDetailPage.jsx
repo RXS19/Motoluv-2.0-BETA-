@@ -955,14 +955,19 @@ const MotoDetailPage = () => {
                 </p>
 
                 {user ? (
-                  <button
-                    onClick={handlePerformApartado}
-                    disabled={apartadoLoading}
-                    className="btn-red w-full inline-flex items-center justify-center gap-2 text-xs font-bold tracking-widest uppercase px-5 py-3.5 rounded-sm shadow-lg cursor-pointer disabled:opacity-70"
-                  >
-                    <BookmarkCheck size={14} />
-                    {apartadoLoading ? 'Redirigiendo a Stripe...' : 'Apartar $600 MXN'}
-                  </button>
+                  <div className="space-y-2">
+                    <button
+                      onClick={handlePerformApartado}
+                      disabled={apartadoLoading}
+                      className="btn-red w-full inline-flex items-center justify-center gap-2 text-xs font-bold tracking-widest uppercase px-5 py-3.5 rounded-sm shadow-lg cursor-pointer disabled:opacity-70"
+                    >
+                      <BookmarkCheck size={14} />
+                      {apartadoLoading ? 'Redirigiendo a Stripe...' : 'Apartar Motocicleta'}
+                    </button>
+                    <p className="text-xs text-zinc-400 leading-relaxed">
+                      Tu apartado garantiza que nadie más pueda comprar esta moto mientras se realiza la verificación.
+                    </p>
+                  </div>
                 ) : (
                   <div className="space-y-2">
                     <button
@@ -972,8 +977,11 @@ const MotoDetailPage = () => {
                       }}
                       className="btn-red w-full inline-flex items-center justify-center gap-2 text-xs font-bold tracking-widest uppercase px-5 py-3.5 rounded-sm cursor-pointer"
                     >
-                      <User size={14} /> Apartar $600 MXN
+                      <User size={14} /> Apartar Motocicleta
                     </button>
+                    <p className="text-xs text-zinc-400 leading-relaxed">
+                      Tu apartado garantiza que nadie más pueda comprar esta moto mientras se realiza la verificación.
+                    </p>
                     <p className="text-[10px] text-amber-400/90 flex items-center gap-1.5 pt-1">
                       <AlertCircle size={12} className="flex-shrink-0" />
                       Debes estar registrado para realizar un apartado.
