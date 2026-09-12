@@ -137,6 +137,36 @@ const HomePage = () => {
         </div>
       </section>
 
+      {/* FEATURED MOTOS */}
+      <section className="max-w-7xl mx-auto px-5 lg:px-8 py-24">
+        <div className="flex items-end justify-between mb-10 flex-wrap gap-4">
+          <div>
+            <h2 className="font-display font-bold text-white text-4xl md:text-5xl uppercase leading-tight">
+              Motos <span className="text-red-brand">destacadas</span>
+            </h2>
+          </div>
+          <Link to="/motos" className="group inline-flex items-center gap-2 text-white text-xs tracking-widest uppercase hover:text-red-brand transition-colors">
+            Ver todas <ArrowRight size={14} className="transition-transform group-hover:translate-x-1" />
+          </Link>
+        </div>
+
+        {featured.length > 0 ? (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+            {featured.map((m) => <MotoCard key={m.id} moto={m} />)}
+          </div>
+        ) : (
+          <div className="text-center py-12 text-zinc-500 text-sm">
+            Explora todas las motocicletas verificadas disponibles en nuestro catálogo.
+          </div>
+        )}
+
+        <div className="text-center mt-14">
+          <Link to="/motos" className="btn-outline group inline-flex items-center gap-2 text-xs font-bold tracking-widest uppercase px-8 py-4 rounded-sm">
+            Ver todas las motos <ArrowRight size={14} className="transition-transform group-hover:translate-x-1" />
+          </Link>
+        </div>
+      </section>
+
       {/* PROCESS */}
       <section className="max-w-7xl mx-auto px-5 lg:px-8 py-24">
         <div className="max-w-2xl">
@@ -192,36 +222,6 @@ const HomePage = () => {
               <p className="text-zinc-400 text-sm leading-relaxed">{f.desc}</p>
             </div>
           ))}
-        </div>
-      </section>
-
-      {/* FEATURED MOTOS */}
-      <section className="max-w-7xl mx-auto px-5 lg:px-8 py-24">
-        <div className="flex items-end justify-between mb-10 flex-wrap gap-4">
-          <div>
-            <h2 className="font-display font-bold text-white text-4xl md:text-5xl uppercase leading-tight">
-              Motos <span className="text-red-brand">destacadas</span>
-            </h2>
-          </div>
-          <Link to="/motos" className="group inline-flex items-center gap-2 text-white text-xs tracking-widest uppercase hover:text-red-brand transition-colors">
-            Ver todas <ArrowRight size={14} className="transition-transform group-hover:translate-x-1" />
-          </Link>
-        </div>
-
-        {featured.length > 0 ? (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-            {featured.map((m) => <MotoCard key={m.id} moto={m} />)}
-          </div>
-        ) : (
-          <div className="text-center py-12 text-zinc-500 text-sm">
-            Explora todas las motocicletas verificadas disponibles en nuestro catálogo.
-          </div>
-        )}
-
-        <div className="text-center mt-14">
-          <Link to="/motos" className="btn-outline group inline-flex items-center gap-2 text-xs font-bold tracking-widest uppercase px-8 py-4 rounded-sm">
-            Ver todas las motos <ArrowRight size={14} className="transition-transform group-hover:translate-x-1" />
-          </Link>
         </div>
       </section>
 
