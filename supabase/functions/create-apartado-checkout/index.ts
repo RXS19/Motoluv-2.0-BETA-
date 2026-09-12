@@ -92,6 +92,23 @@ serve(async (req: Request) => {
       );
     }
 
+    // Validar límite máximo de 2 apartados activos para el comprador
+    const { count: activeApartadosCount } = await supabaseAdmin
+      .from("apartados")
+      .select("id", { count: "exact", head: true })
+      .eq("buyer_id", user.id)
+      .eq("status", "REALIZADO");
+
+    if (activeApartadosCount !== null && activeApartadosCount >= 2) {
+      return new Response(
+        JSON.stringify({ error: "Maximum active apartados reached" }),
+        {
+          status: 409,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        }
+      );
+    }
+
     // Validar si la moto ya tiene un apartado activo o está marcada como apartada
     const { data: activeApartado } = await supabaseAdmin
       .from("apartados")
