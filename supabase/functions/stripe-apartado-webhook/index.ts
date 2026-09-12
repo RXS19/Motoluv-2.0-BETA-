@@ -34,17 +34,45 @@ serve(async (req: Request) => {
     return new Response("Bad signature", { status: 400 });
   }
 
-  if (event.type === "checkout.session.completed") {
-    const session = event.data.object as Stripe.Checkout.Session;
-    const motoId = session.metadata?.moto_id;
-    const buyerId = session.metadata?.buyer_id || session.client_reference_id;
+  if (event.type === "payment_intent.succeeded") {
+    const paymentIntent = event.data.object as Stripe.PaymentIntent;
+
+    // Validación de monto ($600.00 MXN = 60000 centavos) y divisa
+    if (
+      paymentIntent.amount_received !== 60000 ||
+      paymentIntent.currency?.toLowerCase() !== "mxn"
+    ) {
+      console.warn(
+        `PaymentIntent ignored: amount_received ${paymentIntent.amount_received} or currency ${paymentIntent.currency} does not match 60000 mxn`
+      );
+      return new Response(
+        JSON.stringify({ received: true, ignored: true, reason: "Amount or currency mismatch" }),
+        { status: 200, headers: { "Content-Type": "application/json" } }
+      );
+    }
+
+    const metadata = paymentIntent.metadata || {};
+
+    // Validación de operation_type = APARTADO
+    if (metadata.operation_type !== "APARTADO") {
+      console.warn(
+        `PaymentIntent ignored: operation_type is '${metadata.operation_type}', expected 'APARTADO'`
+      );
+      return new Response(
+        JSON.stringify({ received: true, ignored: true, reason: "Invalid operation_type" }),
+        { status: 200, headers: { "Content-Type": "application/json" } }
+      );
+    }
+
+    const motoId = metadata.moto_id;
+    const buyerId = metadata.buyer_id;
 
     if (!motoId || !buyerId) {
-      console.warn("Missing moto_id or buyer_id in checkout session metadata");
-      return new Response(JSON.stringify({ received: true, warning: "Missing metadata" }), {
-        status: 200,
-        headers: { "Content-Type": "application/json" },
-      });
+      console.warn("Missing moto_id or buyer_id in PaymentIntent metadata");
+      return new Response(
+        JSON.stringify({ received: true, warning: "Missing moto_id or buyer_id" }),
+        { status: 200, headers: { "Content-Type": "application/json" } }
+      );
     }
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
@@ -52,11 +80,11 @@ serve(async (req: Request) => {
     const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
 
     try {
-      // Idempotencia: Verificar si el apartado ya fue registrado para este pago
+      // Idempotencia: Verificar si el apartado ya fue registrado para este payment_reference
       const { data: existingApartado } = await supabaseAdmin
         .from("apartados")
         .select("id, nod, status")
-        .eq("payment_reference", session.id)
+        .eq("payment_reference", paymentIntent.id)
         .maybeSingle();
 
       if (existingApartado) {
@@ -88,9 +116,10 @@ serve(async (req: Request) => {
         if (cert.workshop_id) appointmentFields.certification_workshop_id = cert.workshop_id;
       }
 
-      const paidAt = new Date().toISOString();
+      // paid_at extraído de paymentIntent.created (timestamp UNIX en segundos)
+      const paidAt = new Date(paymentIntent.created * 1000).toISOString();
 
-      // Inserción del apartado (el NOD se asigna automáticamente por el trigger/secuencia de Supabase)
+      // Inserción del apartado en Supabase (la generación del NOD es automática por base de datos)
       const { data: apartado, error: apartadoError } = await supabaseAdmin
         .from("apartados")
         .insert([
@@ -101,7 +130,7 @@ serve(async (req: Request) => {
             status: "REALIZADO",
             payment_status: "PAID",
             payment_mode: "STRIPE",
-            payment_reference: session.id,
+            payment_reference: paymentIntent.id,
             paid_at: paidAt,
             ...appointmentFields,
           },
@@ -150,7 +179,7 @@ serve(async (req: Request) => {
         }
       }
     } catch (procError: any) {
-      console.error("Error processing checkout session:", procError);
+      console.error("Error processing payment_intent:", procError);
       return new Response(
         JSON.stringify({ error: procError.message || "Internal server error" }),
         { status: 500, headers: { "Content-Type": "application/json" } }

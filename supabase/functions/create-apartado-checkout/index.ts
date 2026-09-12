@@ -128,9 +128,18 @@ serve(async (req: Request) => {
         },
       ],
       mode: "payment",
+      payment_intent_data: {
+        metadata: {
+          operation_type: "APARTADO",
+          moto_id: String(moto.id),
+          buyer_id: String(user.id),
+          buyer_email: user.email ?? "",
+        },
+      },
       customer_email: user.email,
       client_reference_id: user.id,
       metadata: {
+        operation_type: "APARTADO",
         moto_id: String(moto.id),
         buyer_id: String(user.id),
         buyer_email: user.email ?? "",
