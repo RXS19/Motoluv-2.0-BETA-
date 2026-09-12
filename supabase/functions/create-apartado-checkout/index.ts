@@ -92,7 +92,15 @@ serve(async (req: Request) => {
       );
     }
 
-    if (moto.is_apartada || (moto.status && moto.status.toUpperCase() === "APARTADA")) {
+    // Validar si la moto ya tiene un apartado activo o está marcada como apartada
+    const { data: activeApartado } = await supabaseAdmin
+      .from("apartados")
+      .select("id")
+      .eq("moto_id", moto_id)
+      .eq("status", "REALIZADO")
+      .maybeSingle();
+
+    if (activeApartado || moto.is_apartada || (moto.status && moto.status.toUpperCase() === "APARTADA")) {
       return new Response(
         JSON.stringify({ error: "Motorcycle is already apartada" }),
         {
