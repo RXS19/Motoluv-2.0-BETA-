@@ -1,6 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.8";
-import Stripe from "https://esm.sh/stripe@14.19.0?target=deno";
+import { createClient } from "npm:@supabase/supabase-js@2";
+import Stripe from "npm:stripe@22";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -92,7 +92,7 @@ serve(async (req: Request) => {
       );
     }
 
-    // Validar límite máximo de 2 apartados activos para el comprador
+    // Validar límite máximo de 2 apartados activos por comprador
     const { count: activeApartadosCount } = await supabaseAdmin
       .from("apartados")
       .select("id", { count: "exact", head: true })
@@ -109,7 +109,7 @@ serve(async (req: Request) => {
       );
     }
 
-    // Validar si la moto ya tiene un apartado activo o está marcada como apartada
+    // Idempotencia / Validar si la moto ya está apartada o tiene apartado activo
     const { data: activeApartado } = await supabaseAdmin
       .from("apartados")
       .select("id")
@@ -132,10 +132,10 @@ serve(async (req: Request) => {
       httpClient: Stripe.createFetchHttpClient(),
     });
 
-    const origin =
+    const motoluvUrl =
+      Deno.env.get("MOTOLUV_URL") ||
       req.headers.get("origin") ||
-      Deno.env.get("CLIENT_URL") ||
-      "https://motoluv.mx";
+      "https://www.motoluv.mx";
 
     const session = await stripe.checkout.sessions.create({
       payment_method_types: ["card"],
@@ -158,7 +158,6 @@ serve(async (req: Request) => {
           operation_type: "APARTADO",
           moto_id: String(moto.id),
           buyer_id: String(user.id),
-          buyer_email: user.email ?? "",
         },
       },
       customer_email: user.email,
@@ -167,11 +166,9 @@ serve(async (req: Request) => {
         operation_type: "APARTADO",
         moto_id: String(moto.id),
         buyer_id: String(user.id),
-        buyer_email: user.email ?? "",
-        type: "apartado",
       },
-      success_url: `${origin}/motos/${moto.id}?session_id={CHECKOUT_SESSION_ID}&apartado=success`,
-      cancel_url: `${origin}/motos/${moto.id}`,
+      success_url: `${motoluvUrl}/motos/${moto.id}?session_id={CHECKOUT_SESSION_ID}&apartado=success`,
+      cancel_url: `${motoluvUrl}/motos/${moto.id}`,
     });
 
     return new Response(

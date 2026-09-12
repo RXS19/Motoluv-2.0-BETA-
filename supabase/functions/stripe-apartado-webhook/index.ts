@@ -1,6 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import Stripe from "https://esm.sh/stripe@14.22.0?target=deno";
+import { createClient } from "npm:@supabase/supabase-js@2";
+import Stripe from "npm:stripe@22";
 
 serve(async (req: Request) => {
   if (req.method !== "POST") {
@@ -20,6 +20,7 @@ serve(async (req: Request) => {
     httpClient: Stripe.createFetchHttpClient(),
   });
 
+  const cryptoProvider = Stripe.createSubtleCryptoProvider();
   const body = await req.text();
   let event: Stripe.Event;
 
@@ -27,17 +28,20 @@ serve(async (req: Request) => {
     event = await stripe.webhooks.constructEventAsync(
       body,
       signature,
-      webhookSecret
+      webhookSecret,
+      undefined,
+      cryptoProvider
     );
   } catch (err: any) {
     console.error("Webhook signature verification failed:", err.message);
     return new Response("Bad signature", { status: 400 });
   }
 
+  // Solo procesar payment_intent.succeeded
   if (event.type === "payment_intent.succeeded") {
     const paymentIntent = event.data.object as Stripe.PaymentIntent;
 
-    // Validación de monto ($600.00 MXN = 60000 centavos) y divisa
+    // Validación de monto ($600.00 MXN = 60000 centavos) y divisa MXN
     if (
       paymentIntent.amount_received !== 60000 ||
       paymentIntent.currency?.toLowerCase() !== "mxn"
@@ -80,7 +84,7 @@ serve(async (req: Request) => {
     const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
 
     try {
-      // Idempotencia: Verificar si el apartado ya fue registrado para este payment_reference
+      // Idempotencia por payment_reference
       const { data: existingApartado } = await supabaseAdmin
         .from("apartados")
         .select("id, nod, status")
@@ -97,10 +101,9 @@ serve(async (req: Request) => {
       // paid_at extraído de paymentIntent.created (timestamp UNIX en segundos)
       const paidAt = new Date(paymentIntent.created * 1000).toISOString();
 
-      // Inserción del apartado en Supabase
-      // NOTA: No se pasa 'nod' manualmente (la BD lo genera automáticamente).
-      // Tampoco se actualiza la moto manualmente (la BD y triggers gestionan el estado).
-      const { data: apartado, error: apartadoError } = await supabaseAdmin
+      // Inserción del apartado en Supabase con amount=600, payment_status=PAID, payment_mode=STRIPE, payment_reference y paid_at
+      // El NOD y la actualización del estado de la moto quedan a cargo de Supabase y sus triggers
+      const { error: apartadoError } = await supabaseAdmin
         .from("apartados")
         .insert([
           {
@@ -113,9 +116,7 @@ serve(async (req: Request) => {
             payment_reference: paymentIntent.id,
             paid_at: paidAt,
           },
-        ])
-        .select()
-        .single();
+        ]);
 
       if (apartadoError) {
         console.error("Error creating apartado:", apartadoError);
@@ -123,31 +124,6 @@ serve(async (req: Request) => {
           status: 500,
           headers: { "Content-Type": "application/json" },
         });
-      }
-
-      // Notificar al vendedor de la moto si existe
-      try {
-        const { data: moto } = await supabaseAdmin
-          .from("motos")
-          .select("brand, model, owner_id")
-          .eq("id", motoId)
-          .single();
-
-        if (moto?.owner_id) {
-          const motoTitle = `${moto.brand || ""} ${moto.model || ""}`.trim() || "tu motocicleta";
-          await supabaseAdmin.from("notifications").insert([
-            {
-              recipient_id: moto.owner_id,
-              type: "APARTADO_RECIBIDO",
-              title: "¡Apartado recibido!",
-              body: `Se ha registrado un apartado para ${motoTitle}. Es momento de agendar la inspección técnica en un taller certificado.`,
-              moto_id: String(motoId),
-              apartado_id: String(apartado.id),
-            },
-          ]);
-        }
-      } catch (notifErr) {
-        console.warn("Could not insert seller notification:", notifErr);
       }
     } catch (procError: any) {
       console.error("Error processing payment_intent:", procError);
