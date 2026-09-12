@@ -1196,6 +1196,29 @@ api.get('/auth/me', authenticateToken, (req, res) => {
     return res.json(list);
   });
 
+  // Certified Workshops - strictly from Supabase public.certified_workshops
+  api.get('/certified-workshops', async (req, res) => {
+    try {
+      if (supabaseServer) {
+        const { data, error } = await supabaseServer
+          .from('certified_workshops')
+          .select('*')
+          .eq('active', true)
+          .order('name', { ascending: true });
+
+        if (error) {
+          console.error('Error fetching certified_workshops from Supabase:', error);
+          return res.status(500).json({ error: error.message });
+        }
+        return res.json(data || []);
+      }
+      return res.json([]);
+    } catch (err: any) {
+      console.error('Exception fetching certified_workshops:', err);
+      return res.status(500).json({ error: err?.message || 'Error interno del servidor' });
+    }
+  });
+
   api.put('/apartados/:id/appointment', authenticateToken, async (req, res) => {
     const { appointment_at, workshop_name, workshop_id, moto_id } = req.body;
     let targetMotoId = moto_id;

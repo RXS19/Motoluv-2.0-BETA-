@@ -29,13 +29,12 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { supabase, isSupabaseConfigured } from '../lib/supabase';
-import { motoApi, offerApi, apartadoApi } from '../services/api';
+import { motoApi, offerApi, apartadoApi, workshopApi } from '../services/api';
 import DashboardSidebar from '../components/dashboard/DashboardSidebar';
 import DashboardHeaderBar from '../components/dashboard/DashboardHeaderBar';
 import BoostPublicationModal from '../components/dashboard/BoostPublicationModal';
 import OperationsTimelineViewer, { OperationDetailModal } from '../components/dashboard/OperationsTimelineViewer';
 import ConfirmDeleteModal from '../components/ConfirmDeleteModal';
-import { CERTIFIED_WORKSHOPS } from '../data/workshops';
 import { calculateCommission } from '../utils/commission';
 import { getStatusStyle } from '../utils/status';
 import { resolveSafeImageUrl, handleImageError } from '../utils/imageFallback';
@@ -67,6 +66,11 @@ const SellerDashboard = () => {
   const [selectedDate, setSelectedDate] = useState('');
   const [scheduleLoading, setScheduleLoading] = useState(false);
   const [scheduleError, setScheduleError] = useState('');
+
+  // Certified Workshops Catalog strictly loaded from Supabase public.certified_workshops
+  const [workshops, setWorkshops] = useState([]);
+  const [workshopsLoading, setWorkshopsLoading] = useState(false);
+  const [workshopsError, setWorkshopsError] = useState('');
 
   // Deletion modal state
   const [motoToDelete, setMotoToDelete] = useState(null);
@@ -142,6 +146,7 @@ const SellerDashboard = () => {
 
   useEffect(() => {
     loadData();
+    fetchWorkshops();
 
     // Reconsult on window focus / tab visibility change to avoid stale state
     const handleFocus = () => {
@@ -320,26 +325,106 @@ const getApartadoScheduleRange = (createdAt) => {
   return { minDate, maxDate };
 };
 
-  const handleOpenScheduleModal = (apartado) => {
-    setSelectedApartadoForSchedule(apartado);
+  // Helper: Resuelve la preselección del taller según la jerarquía establecida:
+  // 1. certification_workshop_id del apartado
+  // 2. certification_workshop por nombre
+  // 3. coincidencia por ciudad
+  // 4. finalmente el primer taller disponible
+  const resolvePreselectedWorkshopId = (apartado, availableWorkshops = []) => {
+    if (!availableWorkshops || availableWorkshops.length === 0) return '';
 
-    // If workshop already exists in apartado, use it
+    // 1. Primero certification_workshop_id del apartado
     if (apartado?.certification_workshop_id) {
-      setSelectedWorkshopId(apartado.certification_workshop_id);
-    } else if (apartado?.certification_workshop) {
-      const match = CERTIFIED_WORKSHOPS.find(
-        (w) => w.name.toLowerCase() === apartado.certification_workshop.toLowerCase()
+      const idMatch = availableWorkshops.find(
+        (w) => String(w.id).toLowerCase() === String(apartado.certification_workshop_id).toLowerCase()
       );
-      setSelectedWorkshopId(match ? match.id : CERTIFIED_WORKSHOPS[0].id);
-    } else {
-      const targetCity = (apartado?.moto_city || '').toLowerCase();
-      const cityMatch = CERTIFIED_WORKSHOPS.find(
-        (w) => w.city.toLowerCase() === targetCity
-      );
-      setSelectedWorkshopId(cityMatch ? cityMatch.id : CERTIFIED_WORKSHOPS[0].id);
+      if (idMatch) return idMatch.id;
     }
 
-    const { minDate, maxDate } = getApartadoScheduleRange(apartado?.created_at);
+    // 2. Después certification_workshop por nombre
+    if (apartado?.certification_workshop) {
+      const targetName = String(apartado.certification_workshop).toLowerCase().trim();
+      const nameMatch = availableWorkshops.find(
+        (w) => (w.name || '').toLowerCase().trim() === targetName
+      );
+      if (nameMatch) return nameMatch.id;
+    }
+
+    // 3. Después coincidencia por ciudad
+    const targetCity = (apartado?.moto_city || apartado?.city || apartado?.moto?.city || apartado?.moto?.location || '').toLowerCase().trim();
+    if (targetCity) {
+      const cityMatch = availableWorkshops.find(
+        (w) => (w.city || '').toLowerCase().trim() === targetCity
+      );
+      if (cityMatch) return cityMatch.id;
+    }
+
+    // 4. Finalmente el primer taller disponible
+    return availableWorkshops[0]?.id || '';
+  };
+
+  const fetchWorkshops = async () => {
+    setWorkshopsLoading(true);
+    setWorkshopsError('');
+    try {
+      let data = [];
+      // Consulta directa en Supabase public.certified_workshops (active = true)
+      if (isSupabaseConfigured && supabase) {
+        const { data: sbData, error: sbErr } = await supabase
+          .from('certified_workshops')
+          .select('*')
+          .eq('active', true)
+          .order('name', { ascending: true });
+
+        if (!sbErr && Array.isArray(sbData) && sbData.length > 0) {
+          data = sbData;
+        } else if (sbErr) {
+          console.warn('Consulta directa a certified_workshops en Supabase:', sbErr.message);
+        }
+      }
+
+      // Si la consulta directa no arrojó resultados (ej. RLS de sesión en tránsito), consultar endpoint fallback
+      if (data.length === 0) {
+        const fallback = await workshopApi.list();
+        if (Array.isArray(fallback) && fallback.length > 0) {
+          data = fallback;
+        }
+      }
+
+      setWorkshops(data);
+      return data;
+    } catch (err) {
+      console.error('Error al cargar talleres certificados desde Supabase:', err);
+      setWorkshopsError('No fue posible cargar el catálogo de talleres certificados.');
+      setWorkshops([]);
+      return [];
+    } finally {
+      setWorkshopsLoading(false);
+    }
+  };
+
+  // Mantener sincronizado el taller preseleccionado si los talleres terminan de cargar con el modal abierto
+  useEffect(() => {
+    if (showScheduleModal && selectedApartadoForSchedule && workshops.length > 0 && !selectedWorkshopId) {
+      const resolved = resolvePreselectedWorkshopId(selectedApartadoForSchedule, workshops);
+      if (resolved) {
+        setSelectedWorkshopId(resolved);
+      }
+    }
+  }, [showScheduleModal, selectedApartadoForSchedule, workshops, selectedWorkshopId]);
+
+  const handleOpenScheduleModal = async (apartado) => {
+    setSelectedApartadoForSchedule(apartado);
+
+    let currentWorkshops = workshops;
+    if (!currentWorkshops || currentWorkshops.length === 0) {
+      currentWorkshops = await fetchWorkshops();
+    }
+
+    const preselectedId = resolvePreselectedWorkshopId(apartado, currentWorkshops);
+    setSelectedWorkshopId(preselectedId);
+
+    const { minDate } = getApartadoScheduleRange(apartado?.created_at);
 
     // If appointment date already exists, use it
     if (apartado?.certification_appointment_at) {
@@ -394,7 +479,12 @@ const getApartadoScheduleRange = (createdAt) => {
     }
 
     const chosenWorkshop =
-      CERTIFIED_WORKSHOPS.find((w) => w.id === selectedWorkshopId) || CERTIFIED_WORKSHOPS[0];
+      workshops.find((w) => w.id === selectedWorkshopId) || workshops[0];
+
+    if (!chosenWorkshop) {
+      setScheduleError('No hay talleres mecánicos disponibles para agendar.');
+      return;
+    }
 
     setScheduleLoading(true);
     setScheduleError('');
@@ -1865,22 +1955,37 @@ const getApartadoScheduleRange = (createdAt) => {
                   onChange={(e) => setSelectedWorkshopId(e.target.value)}
                   disabled={
                     scheduleLoading ||
+                    workshopsLoading ||
+                    workshops.length === 0 ||
                     (selectedApartadoForSchedule?.certification_appointment_status || '').toUpperCase() === 'PROGRAMADA' ||
                     (selectedApartadoForSchedule?.certification_appointment_status || '').toUpperCase() === 'COMPLETADA'
                   }
                   className="w-full px-3.5 py-2.5 bg-[#0a0a0c] border border-white/15 focus:border-red-brand text-white text-xs rounded-xl outline-none transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
                 >
-                  <option value="" disabled>Selecciona un taller certificado...</option>
-                  {CERTIFIED_WORKSHOPS.map((ws) => (
+                  {workshopsLoading ? (
+                    <option value="" disabled>Cargando talleres certificados...</option>
+                  ) : workshops.length === 0 ? (
+                    <option value="" disabled>No hay talleres disponibles</option>
+                  ) : (
+                    <option value="" disabled>Selecciona un taller certificado...</option>
+                  )}
+                  {workshops.map((ws) => (
                     <option key={ws.id} value={ws.id}>
                       {ws.name} ({ws.zone}, {ws.city}) — {ws.address}
                     </option>
                   ))}
                 </select>
 
+                {workshopsError && (
+                  <p className="text-amber-400 text-[11px] mt-1.5 flex items-center gap-1">
+                    <AlertCircle size={12} />
+                    <span>{workshopsError}</span>
+                  </p>
+                )}
+
                 {/* Selected Workshop Details Card */}
                 {selectedWorkshopId && (() => {
-                  const ws = CERTIFIED_WORKSHOPS.find((w) => w.id === selectedWorkshopId);
+                  const ws = workshops.find((w) => w.id === selectedWorkshopId);
                   if (!ws) return null;
                   return (
                     <div className="mt-2.5 p-3 bg-white/[0.03] border border-white/10 rounded-xl space-y-1 text-xs">

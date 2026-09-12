@@ -1350,6 +1350,39 @@ export const apartadoApi = {
   },
 };
 
+export const workshopApi = {
+  list: async () => {
+    // 1. Consultar directamente en Supabase con filtro active = true
+    if (isSupabaseConfigured && supabase) {
+      try {
+        const { data, error } = await supabase
+          .from('certified_workshops')
+          .select('*')
+          .eq('active', true)
+          .order('name', { ascending: true });
+
+        if (!error && Array.isArray(data) && data.length > 0) {
+          return data;
+        }
+      } catch (err) {
+        console.warn('Error querying Supabase certified_workshops directly:', err);
+      }
+    }
+
+    // 2. Fallback mediante endpoint del servidor si la sesión directa estuviera en tránsito
+    try {
+      const res = await api.get('/certified-workshops');
+      if (Array.isArray(res.data) && res.data.length > 0) {
+        return res.data;
+      }
+    } catch (err) {
+      console.warn('Error querying /api/certified-workshops:', err);
+    }
+
+    return [];
+  },
+};
+
 export const certificationApi = {
   getByNodOrMoto: async ({ nod, motoId }) => {
     if (!nod && !motoId) return null;
