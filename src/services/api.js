@@ -647,137 +647,52 @@ export const getMotoCertificationAndAppointment = async (motoId) => {
 };
 
 export const apartadoApi = {
-  create: async ({ moto_id }) => {
-    if (isSupabaseConfigured && supabase) {
-      try {
-        const { data: { session } } = await supabase.auth.getSession();
-        if (!session?.user?.id) throw new Error('Debes iniciar sesión para realizar un apartado.');
-
-        const generatedNod = `NOD-${Math.floor(100000 + Math.random() * 900000)}`;
-
-        // Check if the motorcycle already has an existing appointment or completed certification
-        let existingCert = null;
-        try {
-          existingCert = await getMotoCertificationAndAppointment(moto_id);
-        } catch (e) {
-          console.warn('Error fetching existing moto cert during apartado create:', e);
-        }
-
-        const appointmentFields = {};
-        if (existingCert?.isCertified) {
-          appointmentFields.certification_status = existingCert.certification_status || 'APROBADA';
-          appointmentFields.certification_appointment_status = 'COMPLETADA';
-          if (existingCert.certification_appointment_at) {
-            appointmentFields.certification_appointment_at = existingCert.certification_appointment_at;
-          }
-          if (existingCert.certification_workshop) {
-            appointmentFields.certification_workshop = existingCert.certification_workshop;
-          }
-          if (existingCert.certification_workshop_id) {
-            appointmentFields.certification_workshop_id = existingCert.certification_workshop_id;
-          }
-        } else if (existingCert?.isProgrammed && existingCert.certification_appointment_at) {
-          appointmentFields.certification_appointment_status = 'PROGRAMADA';
-          appointmentFields.certification_appointment_at = existingCert.certification_appointment_at;
-          appointmentFields.certification_workshop = existingCert.certification_workshop;
-          appointmentFields.certification_workshop_id = existingCert.certification_workshop_id;
-          appointmentFields.certification_status = existingCert.certification_status || 'PENDIENTE';
-        }
-
-        // Insert into public.apartados with buyer_id, moto_id, status, nod and synchronized appointment
-        let data = null;
-        let error = null;
-
-        try {
-          const res = await supabase
-            .from('apartados')
-            .insert([
-              {
-                buyer_id: session.user.id,
-                moto_id: String(moto_id),
-                status: 'REALIZADO',
-                nod: generatedNod,
-                ...appointmentFields,
-              },
-            ])
-            .select('*, moto:motos(*)')
-            .single();
-          data = res.data;
-          error = res.error;
-        } catch (insertErr) {
-          // If inserting with nod fails (e.g. column not in schema), retry without nod
-          const fallbackRes = await supabase
-            .from('apartados')
-            .insert([
-              {
-                buyer_id: session.user.id,
-                moto_id: String(moto_id),
-                status: 'REALIZADO',
-                ...appointmentFields,
-              },
-            ])
-            .select('*, moto:motos(*)')
-            .single();
-          data = fallbackRes.data;
-          error = fallbackRes.error;
-        }
-
-        if (error && error.message?.includes('nod')) {
-          const fallbackRes = await supabase
-            .from('apartados')
-            .insert([
-              {
-                buyer_id: session.user.id,
-                moto_id: String(moto_id),
-                status: 'REALIZADO',
-                ...appointmentFields,
-              },
-            ])
-            .select('*, moto:motos(*)')
-            .single();
-          data = fallbackRes.data;
-          error = fallbackRes.error;
-        }
-
-        if (error) {
-          console.error('Error creating apartado in Supabase:', error);
-          throw error;
-        }
-
-        if (data && !data.nod) {
-          data.nod = generatedNod;
-        }
-
-        // Automatic notification to seller
-        try {
-          const sellerId = data?.moto?.owner_id;
-          if (sellerId) {
-            const motoTitle = `${data.moto?.brand || ''} ${data.moto?.model || ''}`.trim() || 'tu motocicleta';
-            await supabase
-              .from('notifications')
-              .insert([
-                {
-                  recipient_id: sellerId,
-                  type: 'APARTADO_RECIBIDO',
-                  title: '¡Apartado recibido!',
-                  body: `Se ha registrado un apartado para ${motoTitle}. Es momento de agendar la inspección técnica en un taller certificado.`,
-                  moto_id: String(moto_id),
-                  apartado_id: String(data.id),
-                },
-              ]);
-          }
-        } catch (notifErr) {
-          console.warn('Could not insert notification into Supabase:', notifErr);
-        }
-
-        return data;
-      } catch (err) {
-        console.warn('Supabase apartado create error:', err);
-        throw err;
-      }
+  createCheckout: async ({ moto_id }) => {
+    if (!moto_id) {
+      throw new Error('El ID de la motocicleta es obligatorio.');
     }
 
-    return api.post('/apartados', { moto_id }).then((r) => r.data);
+    if (!isSupabaseConfigured || !supabase) {
+      throw new Error('Supabase no está configurado.');
+    }
+
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session?.user?.id) {
+      throw new Error('Debes iniciar sesión para realizar un apartado.');
+    }
+
+    // Call Supabase Edge Function create-apartado-checkout sending strictly { moto_id }
+    // User session is automatically authenticated via Bearer token
+    const { data, error } = await supabase.functions.invoke('create-apartado-checkout', {
+      body: { moto_id: String(moto_id) },
+    });
+
+    if (error) {
+      let errorMsg = error.message;
+      try {
+        if (error.context && typeof error.context.json === 'function') {
+          const body = await error.context.json();
+          errorMsg = body.error || body.message || errorMsg;
+        }
+      } catch (e) {
+        // ignore JSON parse error
+      }
+      throw new Error(errorMsg || 'Error al iniciar el checkout de Stripe.');
+    }
+
+    const checkoutUrl = data?.checkout_url || data?.url;
+    if (!checkoutUrl) {
+      throw new Error('No se recibió la URL de Stripe Checkout.');
+    }
+
+    return {
+      checkout_url: checkoutUrl,
+      ...data,
+    };
+  },
+
+  create: async ({ moto_id }) => {
+    return apartadoApi.createCheckout({ moto_id });
   },
 
   mine: async () => {
