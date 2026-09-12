@@ -82,6 +82,13 @@ const MotoCard = ({ moto, showScore = true, showStatus = false }) => {
     navigate(`/motos/${moto.id}`);
   };
 
+  // Verificar si la moto está apartada
+  const isApartada = Boolean(
+    moto.apartado_status === 'APARTADA' ||
+    moto.is_apartada ||
+    String(moto.status || '').toUpperCase() === 'APARTADA'
+  );
+
   return (
     <Link
       to={`/motos/${moto.id}`}
@@ -98,7 +105,7 @@ const MotoCard = ({ moto, showScore = true, showStatus = false }) => {
 
         {/* Top Right: Apartada Badge & Favorite Heart Button */}
         <div className="absolute top-3 right-3 z-20 flex items-center gap-2">
-          {(moto.apartado_status === 'APARTADA' || moto.is_apartada) && (
+          {isApartada && (
             <span className="bg-white text-black text-[10px] font-bold tracking-wider uppercase px-2 py-0.5 rounded-sm shadow-md pointer-events-none select-none">
               APARTADA
             </span>
@@ -187,13 +194,15 @@ const MotoCard = ({ moto, showScore = true, showStatus = false }) => {
           </div>
         )}
 
-        {/* Apartado Badge Callout */}
-        <div className="mt-3 pt-2.5 flex items-center justify-between text-xs bg-red-brand/10 -mx-4 -mb-4 px-4 py-2.5 border-t border-black">
-          <span className="text-zinc-300 font-medium text-[11px]">Separación De Inventario</span>
-          <span className="text-red-brand font-bold uppercase tracking-wider text-[10px] bg-red-brand/10 border border-red-brand/30 px-2 py-0.5 rounded-sm">
-            APARTAR
-          </span>
-        </div>
+        {/* Apartado Badge Callout - visible solo cuando la moto esté disponible */}
+        {!isApartada && (
+          <div className="mt-3 pt-2.5 flex items-center justify-between text-xs bg-red-brand/10 -mx-4 -mb-4 px-4 py-2.5 border-t border-black">
+            <span className="text-zinc-300 font-medium text-[11px]">Separación De Inventario</span>
+            <span className="text-red-brand font-bold uppercase tracking-wider text-[10px] bg-red-brand/10 border border-red-brand/30 px-2 py-0.5 rounded-sm">
+              APARTAR
+            </span>
+          </div>
+        )}
       </div>
     </Link>
   );
