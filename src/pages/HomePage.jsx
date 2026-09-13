@@ -63,10 +63,10 @@ const HomePage = () => {
               className="w-full h-full object-cover object-[72%_center] sm:object-[68%_center] lg:object-center opacity-95 lg:opacity-100 brightness-[1.08] contrast-[1.04] saturate-[1.05] drop-shadow-2xl"
               referrerPolicy="no-referrer"
             />
-            {/* Seamless dark mask matching header #0a0a0a on the left while preserving motorcycle brightness and details */}
-            <div className="absolute inset-0 bg-gradient-to-r from-[#0a0a0a] via-[#0a0a0a]/90 lg:via-[#0a0a0a]/75 to-transparent w-full lg:w-[58%]" />
-            <div className="absolute inset-0 bg-gradient-to-t from-[#0a0a0a]/70 via-transparent to-[#0a0a0a]/50" />
-            <div className="absolute inset-0 bg-gradient-to-b from-[#0a0a0a]/50 via-transparent to-[#0a0a0a]/80" />
+            {/* Seamless dark mask matching #0a0a0a on the left while preserving motorcycle brightness and details */}
+            <div className="absolute inset-0 bg-gradient-to-r from-[#0a0a0a] from-10% via-[#0a0a0a]/75 via-45% to-transparent to-75% lg:to-80% w-full pointer-events-none" />
+            <div className="absolute inset-0 bg-gradient-to-t from-[#0a0a0a]/70 via-transparent to-[#0a0a0a]/50 pointer-events-none" />
+            <div className="absolute inset-0 bg-gradient-to-b from-[#0a0a0a]/50 via-transparent to-[#0a0a0a]/80 pointer-events-none" />
           </div>
         </div>
 
