@@ -155,24 +155,79 @@ export const getPointStatusConfig = (raw) => {
 
 /**
  * Mapeo oficial del estado GENERAL de certificación de Motoluv:
- * APROBADA    -> CERTIFICADA
- * CERTIFICADA -> CERTIFICADA
- * RECHAZADA   -> RECHAZADA
- * NO_APROBADA -> RECHAZADA
+ * APROBADA / CERTIFICADA -> CERTIFICADA
+ * RECHAZADA / NO_APROBADA -> RECHAZADA
+ * REVISADA / EN_REVISION / TECNICA_REVISADA -> REVISADA
+ * PROCESANDO / EN_PROCESO / cita completada sin evaluación -> PROCESANDO
  * null / vacío / otro -> PENDIENTE
  *
  * REGLA ESTRICTA:
  * NUNCA mostrar REGULAR, ACEPTABLE, REQUIERE_ATENCION ni RECHAZO como estado general.
  * NUNCA utilizar moto_certifications.global_status como sustituto directo del estado general.
  */
-export const mapCertificationStatus = (raw) => {
-  if (!raw) return 'PENDIENTE';
-  const s = String(raw).trim().toUpperCase();
+export const mapCertificationStatus = (raw, isAppointmentCompleted = false, hasFullEvaluation = false) => {
+  const s = String(raw || '').trim().toUpperCase();
   if (s === 'APROBADA' || s === 'CERTIFICADA') {
     return 'CERTIFICADA';
   }
   if (s === 'RECHAZADA' || s === 'NO_APROBADA') {
     return 'RECHAZADA';
   }
+  if (s === 'REVISADA' || s === 'EN_REVISION' || s === 'TECNICA_REVISADA' || s === 'TÉCNICA REVISADA') {
+    return 'REVISADA';
+  }
+  if (s === 'PROCESANDO' || s === 'EN_PROCESO' || s === 'EVALUACION') {
+    return 'PROCESANDO';
+  }
+  if (isAppointmentCompleted && !hasFullEvaluation) {
+    return 'PROCESANDO';
+  }
   return 'PENDIENTE';
 };
+
+export const getCertificationStatusConfig = (status) => {
+  const s = String(status || '').trim().toUpperCase();
+  switch (s) {
+    case 'CERTIFICADA':
+    case 'APROBADA':
+      return {
+        label: 'CERTIFICADA',
+        badgeClass: 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30',
+        textClass: 'text-emerald-400',
+        subtext: 'Inspección aprobada con peritaje oficial',
+      };
+    case 'RECHAZADA':
+    case 'NO_APROBADA':
+      return {
+        label: 'RECHAZADA',
+        badgeClass: 'bg-red-500/20 text-red-400 border border-red-500/30',
+        textClass: 'text-red-400',
+        subtext: 'No aprobó el estándar técnico oficial',
+      };
+    case 'REVISADA':
+    case 'TÉCNICA REVISADA':
+      return {
+        label: 'REVISADA',
+        badgeClass: 'bg-cyan-500/20 text-cyan-400 border border-cyan-500/30',
+        textClass: 'text-cyan-400',
+        subtext: 'Certificación técnica revisada',
+      };
+    case 'PROCESANDO':
+    case 'EN_PROCESO':
+      return {
+        label: 'PROCESANDO',
+        badgeClass: 'bg-blue-500/20 text-blue-400 border border-blue-500/30',
+        textClass: 'text-blue-400',
+        subtext: 'Evaluación técnica en proceso de captura',
+      };
+    case 'PENDIENTE':
+    default:
+      return {
+        label: 'PENDIENTE',
+        badgeClass: 'bg-amber-500/20 text-amber-400 border border-amber-500/30',
+        textClass: 'text-amber-400',
+        subtext: 'Inspección oficial pendiente en taller',
+      };
+  }
+};
+
