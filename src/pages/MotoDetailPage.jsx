@@ -10,6 +10,7 @@ import { toast } from '../hooks/use-toast';
 import { getStatusStyle } from '../utils/status';
 import { handleImageError, resolveSafeImageUrl, FALLBACK_MOTO_IMAGE } from '../utils/imageFallback';
 import { getCachedMotoViews, setCachedMotoViews } from '../utils/motoNavigation';
+import { censorSurname } from '../utils/namePrivacy';
 import {
   MECHANICAL_MODULES,
   getModuleStatusConfig,
@@ -1624,7 +1625,7 @@ const MotoDetailPage = () => {
                 {moto.owner_name ? moto.owner_name.charAt(0).toUpperCase() : <User size={18} className="text-red-brand" />}
               </div>
               <div>
-                <div className="text-white text-sm font-medium">{moto.owner_name || 'Vendedor en Motoluv'}</div>
+                <div className="text-white text-sm font-medium">{censorSurname(moto.owner_name, 'Vendedor en Motoluv')}</div>
                 <div className="flex items-center gap-1 text-xs text-zinc-400">
                   {(moto.seller_identity_verification_status === 'verified' || moto.identity_verification_status === 'verified') ? (
                     <span className="text-emerald-400 font-medium flex items-center gap-1">
