@@ -468,7 +468,7 @@ export const getMotoCertificationAndAppointment = async (motoId) => {
       const [apartadosRes, motoRes] = await Promise.all([
         supabase
           .from('apartados')
-          .select('id, moto_id, certification_appointment_at, certification_appointment_status, certification_workshop, certification_workshop_id, certification_status, status, created_at')
+          .select('id, moto_id, nod, buyer_id, certification_appointment_at, certification_appointment_status, certification_workshop, certification_workshop_id, certification_status, status, created_at')
           .eq('moto_id', motoIdStr)
           .order('created_at', { ascending: false }),
         supabase
@@ -561,7 +561,7 @@ export const getMotoCertificationAndAppointment = async (motoId) => {
           certification_status: 'APROBADA',
           certification_appointment_status: 'COMPLETADA',
           certification_appointment_at: approvedCert.certification_appointment_at || null,
-          certification_workshop: approvedCert.certification_workshop || 'Taller Mecánico Certificado Motoluv',
+          certification_workshop: approvedCert.certification_workshop || null,
           certification_workshop_id: approvedCert.certification_workshop_id || null,
         };
       }
@@ -576,7 +576,7 @@ export const getMotoCertificationAndAppointment = async (motoId) => {
           certification_status: 'RECHAZADA',
           certification_appointment_status: 'COMPLETADA',
           certification_appointment_at: rejectedCert.certification_appointment_at || null,
-          certification_workshop: rejectedCert.certification_workshop || 'Taller Mecánico Certificado Motoluv',
+          certification_workshop: rejectedCert.certification_workshop || null,
           certification_workshop_id: rejectedCert.certification_workshop_id || null,
         };
       }
@@ -591,7 +591,7 @@ export const getMotoCertificationAndAppointment = async (motoId) => {
           certification_status: scheduledApp.certification_status || 'PENDIENTE',
           certification_appointment_status: 'PROGRAMADA',
           certification_appointment_at: scheduledApp.certification_appointment_at,
-          certification_workshop: scheduledApp.certification_workshop || 'Taller Mecánico Certificado Motoluv',
+          certification_workshop: scheduledApp.certification_workshop || null,
           certification_workshop_id: scheduledApp.certification_workshop_id || null,
         };
       }
@@ -603,10 +603,10 @@ export const getMotoCertificationAndAppointment = async (motoId) => {
           isProgrammed: false,
           isCancelled: false,
           isCompleted: true,
-          certification_status: 'PENDIENTE',
+          certification_status: completedApp.certification_status || 'PENDIENTE',
           certification_appointment_status: 'COMPLETADA',
           certification_appointment_at: completedApp.certification_appointment_at || null,
-          certification_workshop: completedApp.certification_workshop || 'Taller Mecánico Certificado Motoluv',
+          certification_workshop: completedApp.certification_workshop || null,
           certification_workshop_id: completedApp.certification_workshop_id || null,
         };
       }
@@ -872,12 +872,16 @@ export const apartadoApi = {
           if (!buyerErr && Array.isArray(buyerData) && buyerData.length > 0) {
             const item = buyerData[0];
             const mCert = await getMotoCertificationAndAppointment(motoId);
-            if (mCert?.isProgrammed || mCert?.isCertified) {
-              item.certification_appointment_at = mCert.certification_appointment_at;
-              item.certification_appointment_status = mCert.certification_appointment_status;
-              item.certification_workshop = mCert.certification_workshop;
-              item.certification_workshop_id = mCert.certification_workshop_id;
-              item.certification_status = mCert.certification_status;
+            if (
+              mCert?.isProgrammed ||
+              mCert?.isCertified ||
+              mCert?.isCompleted
+            ) {
+              item.certification_appointment_at = mCert.certification_appointment_at || item.certification_appointment_at;
+              item.certification_appointment_status = mCert.certification_appointment_status || item.certification_appointment_status;
+              item.certification_workshop = mCert.certification_workshop || item.certification_workshop;
+              item.certification_workshop_id = mCert.certification_workshop_id || item.certification_workshop_id;
+              item.certification_status = mCert.certification_status || item.certification_status;
             }
             return item;
           }
@@ -893,12 +897,16 @@ export const apartadoApi = {
           if (!ownerErr && Array.isArray(ownerData) && ownerData.length > 0) {
             const item = ownerData[0];
             const mCert = await getMotoCertificationAndAppointment(motoId);
-            if (mCert?.isProgrammed || mCert?.isCertified) {
-              item.certification_appointment_at = mCert.certification_appointment_at;
-              item.certification_appointment_status = mCert.certification_appointment_status;
-              item.certification_workshop = mCert.certification_workshop;
-              item.certification_workshop_id = mCert.certification_workshop_id;
-              item.certification_status = mCert.certification_status;
+            if (
+              mCert?.isProgrammed ||
+              mCert?.isCertified ||
+              mCert?.isCompleted
+            ) {
+              item.certification_appointment_at = mCert.certification_appointment_at || item.certification_appointment_at;
+              item.certification_appointment_status = mCert.certification_appointment_status || item.certification_appointment_status;
+              item.certification_workshop = mCert.certification_workshop || item.certification_workshop;
+              item.certification_workshop_id = mCert.certification_workshop_id || item.certification_workshop_id;
+              item.certification_status = mCert.certification_status || item.certification_status;
             }
             return item;
           }
@@ -927,12 +935,16 @@ export const apartadoApi = {
           if (!error && Array.isArray(data) && data.length > 0) {
             const item = data[0];
             const mCert = await getMotoCertificationAndAppointment(motoId);
-            if (mCert?.isProgrammed || mCert?.isCertified) {
-              item.certification_appointment_at = mCert.certification_appointment_at;
-              item.certification_appointment_status = mCert.certification_appointment_status;
-              item.certification_workshop = mCert.certification_workshop;
-              item.certification_workshop_id = mCert.certification_workshop_id;
-              item.certification_status = mCert.certification_status;
+            if (
+              mCert?.isProgrammed ||
+              mCert?.isCertified ||
+              mCert?.isCompleted
+            ) {
+              item.certification_appointment_at = mCert.certification_appointment_at || item.certification_appointment_at;
+              item.certification_appointment_status = mCert.certification_appointment_status || item.certification_appointment_status;
+              item.certification_workshop = mCert.certification_workshop || item.certification_workshop;
+              item.certification_workshop_id = mCert.certification_workshop_id || item.certification_workshop_id;
+              item.certification_status = mCert.certification_status || item.certification_status;
             }
             return item;
           }
