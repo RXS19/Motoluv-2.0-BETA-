@@ -637,7 +637,7 @@ const MotoDetailPage = () => {
                 }`}
               />
             </button>
-            {user && scoreValue !== null && (
+            {scoreValue !== null && (
               <div className="absolute bottom-4 left-4 bg-black/70 backdrop-blur text-white text-sm font-medium px-3 py-1.5 rounded-sm flex items-center gap-1.5">
                 <Wrench size={13} className="text-red-brand" /> Score {scoreValue.toFixed(1)}/5
               </div>
@@ -879,7 +879,7 @@ const MotoDetailPage = () => {
                           Detalle Técnico Reservado
                         </div>
                         <p className="text-zinc-400 text-xs mt-0.5 leading-relaxed">
-                          Los 20 puntos de inspección, diagnóstico pericial de subsistemas, observaciones técnicas, taller asignado y folio oficial son privados y exclusivos para el comprador y vendedor vinculados a esta operación.
+                          La matriz detallada de inspección, diagnóstico pericial de subsistemas, observaciones técnicas, taller asignado y folio oficial son privados y exclusivos para el comprador y vendedor vinculados a esta operación.
                         </p>
                       </div>
                     </div>
@@ -1733,11 +1733,11 @@ const MotoDetailPage = () => {
               </div>
             </div>
 
-            {/* Detailed Inspection Matrix - 20 Puntos */}
+            {/* Detailed Inspection Matrix */}
             <div className="space-y-4">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
                 <h4 className="text-xs font-bold text-white uppercase tracking-wider flex items-center gap-2">
-                  <Award size={14} className="text-red-brand" /> Resultados de Inspección (20 Puntos Técnicos)
+                  <Award size={14} className="text-red-brand" /> Resultados de Inspección Técnica
                 </h4>
                 <span className="text-[10px] text-zinc-400">Inspección técnica y peritaje oficial</span>
               </div>
