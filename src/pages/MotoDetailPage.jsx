@@ -462,7 +462,7 @@ const MotoDetailPage = () => {
 
   const certFolio = motoCertification?.folio || (apartado?.nod 
     ? `CERT-${apartado?.nod}` 
-    : (apartado?.id ? `FOL-${String(apartado?.id).slice(0, 8).toUpperCase()}` : (moto?.id ? `FOL-${String(moto?.id).slice(0, 8).toUpperCase()}` : (isAppointmentCompleted && !hasFullEvaluation ? 'PROCESANDO' : 'No disponible'))));
+    : (apartado?.id ? `FOL-${String(apartado?.id).slice(0, 8).toUpperCase()}` : (moto?.id ? `FOL-${String(moto?.id).slice(0, 8).toUpperCase()}` : 'PROCESANDO…')));
 
   const certDate = motoCertification?.inspection_date
     ? new Date(motoCertification.inspection_date).toLocaleDateString('es-MX', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })
@@ -470,10 +470,10 @@ const MotoDetailPage = () => {
         ? new Date(apartado?.certification_appointment_at).toLocaleDateString('es-MX', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })
         : (moto?.certification_appointment_at 
             ? new Date(moto?.certification_appointment_at).toLocaleDateString('es-MX', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })
-            : (isAppointmentCompleted && !hasFullEvaluation ? 'PROCESANDO' : 'No disponible')));
+            : 'PROCESANDO…'));
 
-  const certInspector = motoCertification?.inspector_name || apartado?.inspector_name || moto?.inspector_name || (isAppointmentCompleted && !hasFullEvaluation ? 'PROCESANDO' : 'No asignado');
-  const certNotes = motoCertification?.inspection_notes || apartado?.inspection_notes || moto?.inspection_notes || moto?.certification_notes || (isAppointmentCompleted && !hasFullEvaluation ? 'Cita completada en taller. Evaluación técnica y captura de diagnóstico pericial en curso (PROCESANDO).' : 'Sin observaciones registradas.');
+  const certInspector = motoCertification?.inspector_name || apartado?.inspector_name || moto?.inspector_name || 'PROCESANDO…';
+  const certNotes = motoCertification?.inspection_notes || apartado?.inspection_notes || moto?.inspection_notes || moto?.certification_notes || 'Diagnóstico técnico y observaciones de peritaje en curso (PROCESANDO…).';
 
   const rawScoreDetails = (moto && (moto.score_details || moto.scoreDetails)) || null;
   const scoreDetails = (rawScoreDetails && typeof rawScoreDetails === 'object' && Object.keys(rawScoreDetails).length > 0)
@@ -650,13 +650,13 @@ const MotoDetailPage = () => {
                         {scoreValue !== null ? scoreValue.toFixed(1) : (isAppointmentCompleted && !hasFullEvaluation ? '--' : '--')}
                       </span>
                       <span className="text-[9px] uppercase font-bold tracking-widest text-red-100 mt-0.5">
-                        {scoreValue !== null ? 'de 5.0' : (isAppointmentCompleted && !hasFullEvaluation ? 'PERITAJE' : 'Score')}
+                        {scoreValue !== null ? 'de 5.0' : 'PROCESANDO…'}
                       </span>
                     </div>
                     <div>
                       <div className="text-xs text-zinc-400 uppercase tracking-wider font-medium">Score Mecánico</div>
                       <div className="text-white font-bold text-sm flex items-center gap-1 mt-0.5">
-                        <CheckCheck size={15} className={certStatus === 'RECHAZADA' ? 'text-red-400' : 'text-emerald-400'} /> {certStatus === 'PENDIENTE' && isAppointmentCompleted && !hasFullEvaluation ? 'PROCESANDO' : certStatus}
+                        <CheckCheck size={15} className={certStatus === 'RECHAZADA' ? 'text-red-400' : 'text-emerald-400'} /> {certStatus === 'PENDIENTE' ? 'PROCESANDO…' : certStatus}
                       </div>
                     </div>
                   </div>
@@ -665,8 +665,8 @@ const MotoDetailPage = () => {
                     <>
                       <div className="border-t md:border-t-0 md:border-l border-white/5 pt-3 md:pt-0 md:pl-4">
                         <div className="text-[10px] text-zinc-500 uppercase tracking-widest">Taller y Cita</div>
-                        <div className="text-white font-bold text-xs mt-0.5 truncate" title={apartado?.certification_workshop || moto?.certification_workshop || 'PROCESANDO'}>
-                          {apartado?.certification_workshop || moto?.certification_workshop || 'PROCESANDO'}
+                        <div className="text-white font-bold text-xs mt-0.5 truncate" title={apartado?.certification_workshop || moto?.certification_workshop || 'PROCESANDO…'}>
+                          {apartado?.certification_workshop || moto?.certification_workshop || 'PROCESANDO…'}
                         </div>
                         <div className="text-[11px] text-zinc-400 mt-1">
                           {certDate} • <span className={`font-semibold ${
@@ -677,7 +677,7 @@ const MotoDetailPage = () => {
                               : (moto?.certification_appointment_status || apartado?.certification_appointment_status || '').toUpperCase() === 'CANCELADA'
                               ? 'text-red-400'
                               : 'text-amber-400'
-                          }`}>{moto?.certification_appointment_status || apartado?.certification_appointment_status || (isAppointmentCompleted ? 'COMPLETADA' : 'SIN CITA')}</span>
+                          }`}>{moto?.certification_appointment_status || apartado?.certification_appointment_status || (isAppointmentCompleted ? 'COMPLETADA' : 'PROCESANDO…')}</span>
                         </div>
                       </div>
 
@@ -691,7 +691,7 @@ const MotoDetailPage = () => {
                     <>
                       <div className="border-t md:border-t-0 md:border-l border-white/5 pt-3 md:pt-0 md:pl-4">
                         <div className="text-[10px] text-zinc-500 uppercase tracking-widest">Estado Certificación</div>
-                        <div className="text-white font-bold text-sm mt-0.5">{certStatus === 'PENDIENTE' && isAppointmentCompleted && !hasFullEvaluation ? 'PROCESANDO' : certStatus}</div>
+                        <div className="text-white font-bold text-sm mt-0.5">{certStatus === 'PENDIENTE' ? 'PROCESANDO…' : certStatus}</div>
                         <div className="text-[11px] text-zinc-400 mt-1">Inspección oficial Motoluv</div>
                       </div>
 
@@ -705,46 +705,39 @@ const MotoDetailPage = () => {
                 </div>
 
                 {/* Grid of Mechanical Systems - 6 Módulos Oficiales */}
-                {motoCertification && hasFullEvaluation ? (
-                  <div>
-                    <div className="text-xs text-zinc-400 uppercase tracking-widest font-bold mb-4 flex items-center justify-between">
-                      <span>Evaluación por Sistemas Mecánicos y Estructurales</span>
-                    </div>
+                <div>
+                  <div className="text-xs text-zinc-400 uppercase tracking-widest font-bold mb-4 flex items-center justify-between">
+                    <span>Evaluación por Sistemas Mecánicos y Estructurales</span>
+                    <span className="text-[10px] text-zinc-500 font-mono">
+                      {motoCertification && hasFullEvaluation ? 'Dictamen Certificado' : 'Inspección en Curso'}
+                    </span>
+                  </div>
 
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-4">
-                      {MECHANICAL_MODULES.map((mod) => {
-                        const rawStatus = motoCertification[mod.key];
-                        const meta = getModuleStatusConfig(rawStatus);
-                        return (
-                          <div key={mod.key} className="p-3 bg-[#0a0a0b]/60 border border-white/5 rounded-sm hover:border-white/10 transition-colors">
-                            <div className="flex items-center justify-between text-xs">
-                              <span className="text-zinc-200 font-medium flex items-center gap-2">
-                                <span className={`w-2 h-2 rounded-full ${meta.dotClass}`} />
-                                {mod.name}
-                              </span>
-                              <span className={`font-bold text-[10px] uppercase tracking-wider px-2.5 py-0.5 rounded border ${meta.badgeClass}`}>
-                                {meta.label}
-                              </span>
-                            </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-4">
+                    {MECHANICAL_MODULES.map((mod) => {
+                      const rawStatus = motoCertification ? motoCertification[mod.key] : null;
+                      const meta = getModuleStatusConfig(rawStatus);
+                      return (
+                        <div key={mod.key} className="p-3 bg-[#0a0a0b]/60 border border-white/5 rounded-sm hover:border-white/10 transition-colors">
+                          <div className="flex items-center justify-between text-xs">
+                            <span className="text-zinc-200 font-medium flex items-center gap-2">
+                              <span className={`w-2 h-2 rounded-full ${meta.dotClass}`} />
+                              {mod.name}
+                            </span>
+                            <span className={`font-bold text-[10px] uppercase tracking-wider px-2.5 py-0.5 rounded border ${meta.badgeClass}`}>
+                              {meta.label}
+                            </span>
                           </div>
-                        );
-                      })}
-                    </div>
+                        </div>
+                      );
+                    })}
+                  </div>
 
-                    <div className="mt-3 text-[11px] text-zinc-500 flex items-center gap-2">
-                      <CheckCircle2 size={13} className="text-zinc-500" />
-                      <span>6 áreas mecánicas evaluadas</span>
-                    </div>
+                  <div className="mt-3 text-[11px] text-zinc-500 flex items-center gap-2">
+                    <CheckCircle2 size={13} className="text-zinc-500" />
+                    <span>6 áreas mecánicas evaluadas</span>
                   </div>
-                ) : (
-                  <div className="p-4 bg-[#0a0a0b] border border-white/5 rounded-sm text-center">
-                    <p className="text-xs text-zinc-400">
-                      {isAppointmentCompleted
-                        ? 'Cita completada en taller. Evaluación técnica y captura de diagnóstico en curso (PROCESANDO).'
-                        : 'Evaluación detallada por subsistemas mecánicos disponible al concluir el peritaje oficial.'}
-                    </p>
-                  </div>
-                )}
+                </div>
 
                 {/* Diagnostic notes */}
                 <div className="p-4 bg-[#0a0a0b] border border-white/5 rounded-sm space-y-2">
@@ -923,7 +916,7 @@ const MotoDetailPage = () => {
                           ? 'bg-red-500/20 text-red-400 border border-red-500/30'
                           : 'bg-amber-500/20 text-amber-400 border border-amber-500/30'
                       }`}>
-                        {certStatus === 'PENDIENTE' && isAppointmentCompleted && !hasFullEvaluation ? 'PROCESANDO' : certStatus}
+                        {certStatus === 'PENDIENTE' ? 'PROCESANDO…' : certStatus}
                       </span>
                     </div>
                     {isOwner && (
@@ -931,7 +924,7 @@ const MotoDetailPage = () => {
                         <div className="flex items-center justify-between text-zinc-400 text-[11px]">
                           <span>Taller:</span>
                           <span className="text-zinc-200 truncate max-w-[180px]">
-                            {apartado?.certification_workshop || moto?.certification_workshop || 'PROCESANDO'}
+                            {apartado?.certification_workshop || moto?.certification_workshop || 'PROCESANDO…'}
                           </span>
                         </div>
                         {(apartado?.certification_appointment_at || moto?.certification_appointment_at) && (
@@ -943,7 +936,7 @@ const MotoDetailPage = () => {
                         {(apartado?.certification_appointment_status || moto?.certification_appointment_status || isAppointmentCompleted) && (
                           <div className="flex items-center justify-between text-zinc-400 text-[11px]">
                             <span>Estado de cita:</span>
-                            <span className="text-zinc-200">{apartado?.certification_appointment_status || moto?.certification_appointment_status || (isAppointmentCompleted ? 'COMPLETADA' : 'SIN CITA')}</span>
+                            <span className="text-zinc-200">{apartado?.certification_appointment_status || moto?.certification_appointment_status || (isAppointmentCompleted ? 'COMPLETADA' : 'PROCESANDO…')}</span>
                           </div>
                         )}
                       </>
@@ -1618,7 +1611,7 @@ const MotoDetailPage = () => {
                     ? 'text-amber-400'
                     : 'text-emerald-400'
                 }`}>
-                  <CheckCircle2 size={13} /> {certStatus}
+                  <CheckCircle2 size={13} /> {certStatus === 'PENDIENTE' ? 'PROCESANDO…' : certStatus}
                 </span>
               </div>
             </div>
