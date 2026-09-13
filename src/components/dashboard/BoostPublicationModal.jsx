@@ -238,21 +238,26 @@ const BoostPublicationModal = ({ isOpen, onClose, moto, allMotos = [], onBoostSu
           </button>
         </div>
 
-        {/* Modal Body */}
-        <div className="p-6 overflow-y-auto custom-scrollbar flex-1 space-y-6">
-          {/* STEP 1: Select Moto & Plan */}
-          {step === 'plan' && (
-            <div className="space-y-6">
-              {/* Selected Moto Selector / Preview */}
-              <div className="p-4 bg-[#16161c] border border-white/5 rounded-xl space-y-3">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold text-zinc-400 uppercase tracking-wider">
-                    Motocicleta a destacar
-                  </span>
-                  {allMotos.length > 1 && (
-                    <span className="text-[11px] text-zinc-500">Selecciona entre tus motos</span>
-                  )}
-                </div>
+        {/* Modal Body with ShopPage Blur and Censorship Overlay */}
+        <div className="relative overflow-hidden flex-1 flex flex-col min-h-[420px]">
+          {/* Blurred Modal Content */}
+          <div
+            className="p-6 overflow-y-auto custom-scrollbar flex-1 space-y-6 filter blur-md md:blur-lg pointer-events-none select-none opacity-40 transition-all"
+            aria-hidden="true"
+          >
+            {/* STEP 1: Select Moto & Plan */}
+            {step === 'plan' && (
+              <div className="space-y-6">
+                {/* Selected Moto Selector / Preview */}
+                <div className="p-4 bg-[#16161c] border border-white/5 rounded-xl space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-zinc-400 uppercase tracking-wider">
+                      Motocicleta a destacar
+                    </span>
+                    {allMotos.length > 1 && (
+                      <span className="text-[11px] text-zinc-500">Selecciona entre tus motos</span>
+                    )}
+                  </div>
 
                 {allMotos.length > 1 ? (
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
@@ -630,6 +635,36 @@ const BoostPublicationModal = ({ isOpen, onClose, moto, allMotos = [], onBoostSu
               </button>
             </div>
           )}
+          </div>
+
+          {/* Censorship blur overlay banner (Same rule/classes as ShopPage) */}
+          <div className="absolute inset-0 flex items-center justify-center p-4 bg-black/40 rounded-b-2xl z-20 pointer-events-auto">
+            <div className="max-w-md w-full text-center p-6 md:p-8 bg-[#121216]/95 border border-white/15 rounded-2xl shadow-2xl space-y-4 backdrop-blur-md">
+              <div className="w-14 h-14 mx-auto rounded-2xl bg-red-brand/10 border border-red-brand/30 flex items-center justify-center text-red-brand shadow-lg shadow-red-brand/10">
+                <Lock size={24} />
+              </div>
+              <div className="space-y-1.5">
+                <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-red-brand/15 border border-red-brand/30 text-red-400 text-[10px] font-bold uppercase tracking-widest">
+                  PRÓXIMAMENTE
+                </div>
+                <h3 className="font-display font-bold text-white text-lg md:text-xl uppercase tracking-wide">
+                  DESTACAR PUBLICACIÓN
+                </h3>
+                <p className="text-zinc-400 text-xs leading-relaxed max-w-sm mx-auto">
+                  Estamos preparando algo especial para llevar la visibilidad de tu motocicleta al siguiente nivel.
+                  <br /><br />
+                  Muy pronto descubrirás todo lo que tenemos preparado para ti.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={onClose}
+                className="w-full py-2.5 bg-white/10 hover:bg-white/15 text-white font-bold text-xs uppercase tracking-wider rounded-xl border border-white/10 transition-all"
+              >
+                Entendido
+              </button>
+            </div>
+          </div>
         </div>
       </div>
     </div>

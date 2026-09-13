@@ -764,12 +764,18 @@ const getApartadoScheduleRange = (createdAt) => {
               </div>
 
               <div className="flex items-center gap-2.5">
-                <button
-                  onClick={() => handleOpenBoostModal()}
-                  className="px-4 py-2 bg-gradient-to-r from-red-brand to-orange-600 hover:from-red-600 hover:to-orange-500 text-white font-bold text-xs rounded-xl shadow-lg shadow-red-brand/20 flex items-center justify-center transition-all"
-                >
-                  <span>Destacar Publicación</span>
-                </button>
+                <div className="relative inline-block">
+                  <button
+                    onClick={() => handleOpenBoostModal()}
+                    className="px-4 py-2 bg-gradient-to-r from-red-brand to-orange-600 text-white font-bold text-xs rounded-xl shadow-lg shadow-red-brand/20 flex items-center justify-center filter blur-[1.5px] opacity-60 transition-all select-none"
+                    title="Próximamente"
+                  >
+                    <span>Destacar Publicación</span>
+                  </button>
+                  <span className="absolute -top-2 -right-1 px-1.5 py-0.2 text-[9px] font-bold uppercase tracking-wider bg-red-brand text-white rounded-full border border-black shadow pointer-events-none">
+                    Pronto
+                  </span>
+                </div>
                 <Link
                   to="/panel/publicar"
                   className="px-4 py-2 bg-white/10 hover:bg-white/15 text-white font-bold text-xs rounded-xl border border-white/10 flex items-center gap-2 transition-all"

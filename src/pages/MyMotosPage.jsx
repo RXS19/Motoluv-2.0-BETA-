@@ -117,12 +117,18 @@ const MyMotosPage = () => {
         </div>
         <div className="flex items-center gap-3">
           {motos.length > 0 && (
-            <button
-              onClick={() => handleBoost(motos[0])}
-              className="px-5 py-3 bg-gradient-to-r from-red-brand to-orange-600 hover:from-red-600 hover:to-orange-500 text-white font-bold text-xs rounded-sm shadow-md flex items-center justify-center uppercase tracking-wider transition-all"
-            >
-              Destacar Publicación
-            </button>
+            <div className="relative inline-block">
+              <button
+                onClick={() => handleBoost(motos[0])}
+                className="px-5 py-3 bg-gradient-to-r from-red-brand to-orange-600 text-white font-bold text-xs rounded-sm shadow-md flex items-center justify-center uppercase tracking-wider filter blur-[1.5px] opacity-60 transition-all select-none"
+                title="Próximamente"
+              >
+                Destacar Publicación
+              </button>
+              <span className="absolute -top-2 -right-1 px-1.5 py-0.2 text-[9px] font-bold uppercase tracking-wider bg-red-brand text-white rounded-full border border-black shadow pointer-events-none">
+                Pronto
+              </span>
+            </div>
           )}
           <Link to="/panel/publicar" className="btn-red inline-flex items-center gap-2 text-xs font-bold tracking-widest uppercase px-5 py-3 rounded-sm">
             <Plus size={14} /> Nueva Publicación
@@ -203,12 +209,18 @@ const MyMotosPage = () => {
                 </div>
 
                 <div className="p-4 pt-0 space-y-2">
-                  <button
-                    onClick={() => handleBoost(m)}
-                    className="w-full py-2 bg-red-brand/10 hover:bg-red-brand/20 text-red-brand border border-red-brand/30 text-xs font-bold tracking-wider uppercase rounded-sm transition-colors text-center"
-                  >
-                    Destacar Publicación
-                  </button>
+                  <div className="relative">
+                    <button
+                      onClick={() => handleBoost(m)}
+                      className="w-full py-2 bg-red-brand/10 text-red-brand border border-red-brand/30 text-xs font-bold tracking-wider uppercase rounded-sm transition-colors text-center filter blur-[1.5px] opacity-60 select-none"
+                      title="Próximamente"
+                    >
+                      Destacar Publicación
+                    </button>
+                    <span className="absolute -top-2 right-2 px-1.5 py-0.2 text-[9px] font-bold uppercase tracking-wider bg-red-brand text-white rounded-full border border-black shadow pointer-events-none">
+                      Pronto
+                    </span>
+                  </div>
                   <div className="flex gap-2 pt-2 border-t border-white/5">
                     <Link
                       to={m.id ? `/motos/${m.id}` : '/motos'}

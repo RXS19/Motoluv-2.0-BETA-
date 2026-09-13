@@ -381,3 +381,70 @@ DROP POLICY IF EXISTS "Permitir insercion publica de partners" ON public.partner
 CREATE POLICY "Permitir insercion publica de partners"
   ON public.partners FOR INSERT
   WITH CHECK (true);
+
+-- =========================================================================
+-- NOTIFICACIÓN AUTOMÁTICA EN POSTGRESQL AL PUBLICAR MOTO (EN_REVISION -> PUBLICADA)
+-- =========================================================================
+CREATE OR REPLACE FUNCTION public.notify_moto_published_on_status_change()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_moto_title TEXT;
+  v_exists BOOLEAN;
+BEGIN
+  -- Validar cambio de estado de EN_REVISION a PUBLICADA
+  IF (UPPER(COALESCE(OLD.status, '')) = 'EN_REVISION') AND (UPPER(COALESCE(NEW.status, '')) = 'PUBLICADA') THEN
+    IF NEW.id IS NOT NULL AND NEW.owner_id IS NOT NULL THEN
+      -- Evitar duplicados para la misma moto y el mismo vendedor
+      SELECT EXISTS (
+        SELECT 1 
+        FROM public.notifications
+        WHERE recipient_id = NEW.owner_id
+          AND moto_id = NEW.id
+          AND type = 'MOTO_PUBLICADA'
+      ) INTO v_exists;
+
+      IF NOT v_exists THEN
+        v_moto_title := TRIM(COALESCE(NEW.brand, '') || ' ' || COALESCE(NEW.model, ''));
+        IF v_moto_title = '' THEN
+          v_moto_title := 'tu motocicleta';
+        END IF;
+
+        INSERT INTO public.notifications (
+          recipient_id,
+          type,
+          title,
+          body,
+          moto_id,
+          apartado_id,
+          offer_id,
+          created_at,
+          read_at
+        ) VALUES (
+          NEW.owner_id,
+          'MOTO_PUBLICADA',
+          '¡Publicación aprobada!',
+          'Tu motocicleta ' || v_moto_title || ' ha sido revisada y ya se encuentra publicada en el catálogo oficial.',
+          NEW.id,
+          NULL,
+          NULL,
+          NOW(),
+          NULL
+        );
+      END IF;
+    END IF;
+  END IF;
+
+  RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS trg_notify_moto_published ON public.motos;
+CREATE TRIGGER trg_notify_moto_published
+  AFTER UPDATE OF status ON public.motos
+  FOR EACH ROW
+  EXECUTE FUNCTION public.notify_moto_published_on_status_change();
+
