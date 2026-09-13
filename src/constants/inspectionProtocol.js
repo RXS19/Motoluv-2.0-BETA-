@@ -15,19 +15,12 @@ export const MECHANICAL_MODULES = [
 export const getModuleStatusConfig = (raw) => {
   if (!raw) {
     return {
-      label: 'PROCESANDO…',
-      badgeClass: 'bg-amber-500/10 text-amber-400 border-amber-500/30',
-      dotClass: 'bg-amber-400',
+      label: 'No disponible',
+      badgeClass: 'bg-zinc-800/50 text-zinc-400 border-zinc-700/30',
+      dotClass: 'bg-zinc-600',
     };
   }
   const s = String(raw).trim().toUpperCase();
-  if (s === 'NO_DISPONIBLE' || s === 'NO DISPONIBLE' || s === 'PROCESANDO' || s === 'PROCESANDO…' || s === 'PROCESANDO...' || s === 'PENDIENTE') {
-    return {
-      label: 'PROCESANDO…',
-      badgeClass: 'bg-amber-500/10 text-amber-400 border-amber-500/30',
-      dotClass: 'bg-amber-400',
-    };
-  }
   switch (s) {
     case 'ACEPTABLE':
       return {
