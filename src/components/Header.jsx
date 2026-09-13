@@ -4,7 +4,6 @@ import { Bike, Store, Menu, X, LayoutDashboard, Tag, LogOut, Repeat, ShoppingCar
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '../context/AuthContext';
 import { useCart } from '../context/CartContext';
-import { MotoluvLogo } from './MotoluvLogo';
 import NotificationBell from './NotificationBell';
 
 const Header = () => {
@@ -59,7 +58,7 @@ const Header = () => {
       <div className="max-w-7xl mx-auto px-5 lg:px-8 h-16 flex items-center justify-between">
         <Link to="/" className="flex items-center group" title="Motoluv">
           <div className="relative flex items-center justify-center py-1 px-2 rounded bg-black/60 border border-black group-hover:border-[#E10600]/60 transition-colors">
-            <MotoluvLogo className="h-7 md:h-8 w-auto" />
+            <img src="/motoluv-logo.jpg" alt="Motoluv" className="h-7 md:h-8 w-auto object-contain" />
           </div>
         </Link>
 

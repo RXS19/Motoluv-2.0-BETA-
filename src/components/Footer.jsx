@@ -1,7 +1,6 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
 import { Mail, Phone, MapPin, Facebook, Instagram, Twitter } from 'lucide-react';
-import { MotoluvLogo } from './MotoluvLogo';
 import { NovatechLogo } from './NovatechLogo';
 
 const Footer = () => {
@@ -14,7 +13,7 @@ const Footer = () => {
             <div className="flex items-center gap-3 mb-4 flex-wrap">
               <Link to="/" className="inline-block" aria-label="Motoluv Inicio">
                 <div className="flex items-center justify-center py-1 px-2 rounded bg-black/60 border border-black w-fit hover:border-[#E10600]/40 transition-colors">
-                  <MotoluvLogo className="h-8 w-auto" />
+                  <img src="/motoluv-logo.jpg" alt="Motoluv" className="h-8 w-auto object-contain" />
                 </div>
               </Link>
 
