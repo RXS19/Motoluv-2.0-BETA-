@@ -4,7 +4,6 @@ import { ArrowRight, ArrowDown, Users, Shield, Wrench, CheckCircle, Eye, FileTex
 import MotoCard from '../components/MotoCard';
 import { motoApi } from '../services/api';
 import { useAuth } from '../context/AuthContext';
-import heroBikeImage from '../assets/images/ducati_streetfighter_hero_1787973501846.jpg';
 import bobberImage from '../assets/images/cinematic_bobber_rider_1787497883792.jpg';
 
 const HomePage = () => {
@@ -59,8 +58,8 @@ const HomePage = () => {
         <div className="absolute inset-0 flex justify-end items-center pointer-events-none">
           <div className="relative w-full h-full lg:w-[65%] xl:w-[60%] flex items-center justify-end">
             <img
-              src={heroBikeImage}
-              alt="Ducati Streetfighter Motoluv"
+              src="/images/motoluv-hero-final.png"
+              alt="Motoluv Hero"
               className="w-full h-full object-cover object-center lg:object-right opacity-95 lg:opacity-100 brightness-[1.08] contrast-[1.04] saturate-[1.05] drop-shadow-2xl"
               referrerPolicy="no-referrer"
             />
