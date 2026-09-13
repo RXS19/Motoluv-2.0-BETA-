@@ -54,13 +54,13 @@ const HomePage = () => {
         {/* Diagonal Studio Tube Light Bar on the right wall */}
         <div className="absolute right-[-40px] lg:right-[-20px] top-[18%] w-[8px] h-[380px] bg-white/90 rounded-full rotate-[38deg] blur-[2px] opacity-60 shadow-[0_0_35px_#ffffff,0_0_70px_rgba(255,255,255,0.5)] pointer-events-none hidden md:block" />
 
-        {/* Background Motorcycle image positioned on the right (perspective, 55-60% width on desktop) */}
-        <div className="absolute inset-0 flex justify-end items-center pointer-events-none">
-          <div className="relative w-full h-full lg:w-[65%] xl:w-[60%] flex items-center justify-end">
+        {/* Background Motorcycle image replicating reference framing, scale, position and visual coverage */}
+        <div className="absolute inset-0 pointer-events-none overflow-hidden">
+          <div className="relative w-full h-full">
             <img
               src="/images/motoluv-hero-final.png"
               alt="Motoluv Hero"
-              className="w-full h-full object-cover object-center lg:object-right opacity-95 lg:opacity-100 brightness-[1.08] contrast-[1.04] saturate-[1.05] drop-shadow-2xl"
+              className="w-full h-full object-cover object-[72%_center] sm:object-[68%_center] lg:object-center opacity-95 lg:opacity-100 brightness-[1.08] contrast-[1.04] saturate-[1.05] drop-shadow-2xl"
               referrerPolicy="no-referrer"
             />
             {/* Seamless dark mask matching header #0a0a0a on the left while preserving motorcycle brightness and details */}
