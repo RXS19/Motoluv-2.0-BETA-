@@ -22,6 +22,7 @@ import { resolveSafeImageUrl } from '../../utils/imageFallback';
 import { handleMotoLinkClick } from '../../utils/motoNavigation';
 import { motoApi, notificationApi } from '../../services/api';
 import { supabase, isSupabaseConfigured } from '../../lib/supabase';
+import { censorSurname } from '../../utils/namePrivacy';
 
 /**
  * Extracts the primary image exclusively from a motorcycle record.
@@ -486,7 +487,7 @@ export const resolveOperationTimeline = (item) => {
     year: item.moto_year || motoObj?.year || '',
     price: Number(item.moto_price || motoObj?.price || item.amount || 0),
     image: operationMotoImage || null,
-    buyerName: item.buyer_name || item.buyer_email || 'Comprador Motoluv',
+    buyerName: censorSurname(item.buyer_name || item.buyer_email, 'Comprador Motoluv'),
     buyerInitials: getInitials(item.buyer_name || item.buyer_email || 'Comprador'),
     sellerIsVerified,
     certificationStatus: certificationDisplay,
@@ -931,7 +932,7 @@ const OperationsTimelineViewer = ({
                             Comprador
                           </span>
                           <span className="text-xs font-medium text-zinc-200 block leading-tight truncate">
-                            {op.buyerName}
+                            {censorSurname(op.buyerName, 'Comprador')}
                           </span>
                         </div>
                       </div>
@@ -1365,7 +1366,7 @@ export const OperationDetailModal = ({
               <span className="text-zinc-400">{isSeller ? 'Comprador' : 'Vendedor'}:</span>
               <span className="text-zinc-200 font-medium">
                 {isSeller ? (
-                  activeSelectedOperation.buyerName
+                  censorSurname(activeSelectedOperation.buyerName, 'Comprador')
                 ) : (
                   <span className="flex items-center gap-1.5">
                     <ShieldCheck

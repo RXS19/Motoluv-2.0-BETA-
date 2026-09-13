@@ -5,6 +5,7 @@ import { offerApi } from '../services/api';
 import { supabase, isSupabaseConfigured } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext';
 import { toast } from '../hooks/use-toast';
+import { censorSurname } from '../utils/namePrivacy';
 
 const OfferRow = ({ offer, isSeller, onUpdate, onOpenReject }) => {
   const [loading, setLoading] = useState(false);
@@ -55,7 +56,7 @@ const OfferRow = ({ offer, isSeller, onUpdate, onOpenReject }) => {
               {offer.moto_brand || 'Moto'} {offer.moto_model || ''} {offer.moto_year || ''}
             </h4>
             <p className="text-xs text-zinc-400">
-              {isSeller ? `De: ${offer.buyer_name || 'Comprador interesado'}` : `Vendedor: ${offer.seller_name || 'Vendedor'}`}
+              {isSeller ? `De: ${censorSurname(offer.buyer_name, 'Comprador interesado')}` : `Vendedor: ${censorSurname(offer.seller_name, 'Vendedor')}`}
             </p>
           </div>
         </div>
