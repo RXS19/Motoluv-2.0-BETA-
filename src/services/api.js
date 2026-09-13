@@ -1311,6 +1311,46 @@ export const workshopApi = {
 };
 
 export const certificationApi = {
+  getSummary: async (motoId) => {
+    if (!motoId) return null;
+    if (isSupabaseConfigured && supabase) {
+      try {
+        const { data, error } = await supabase.rpc('get_moto_certification_summary', {
+          p_moto_id: String(motoId),
+        });
+        if (!error && data) {
+          return data;
+        }
+        if (error) {
+          console.warn('Error en get_moto_certification_summary:', error);
+        }
+      } catch (err) {
+        console.warn('Error en llamada Supabase RPC get_moto_certification_summary:', err);
+      }
+    }
+    return null;
+  },
+
+  getDetail: async (motoId) => {
+    if (!motoId) return null;
+    if (isSupabaseConfigured && supabase) {
+      try {
+        const { data, error } = await supabase.rpc('get_moto_certification_detail', {
+          p_moto_id: String(motoId),
+        });
+        if (!error && data) {
+          return data;
+        }
+        if (error) {
+          console.warn('Error en get_moto_certification_detail:', error);
+        }
+      } catch (err) {
+        console.warn('Error en llamada Supabase RPC get_moto_certification_detail:', err);
+      }
+    }
+    return null;
+  },
+
   getByNodOrMoto: async ({ nod, motoId }) => {
     if (!nod && !motoId) return null;
     if (isSupabaseConfigured && supabase) {
