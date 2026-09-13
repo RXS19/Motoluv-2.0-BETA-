@@ -57,9 +57,11 @@ const Header = () => {
     <header className="sticky top-0 z-50 bg-[#0a0a0a]/85 backdrop-blur border-b border-black">
       <div className="max-w-7xl mx-auto px-5 lg:px-8 h-16 flex items-center justify-between">
         <Link to="/" className="flex items-center group" title="Motoluv">
-          <div className="relative flex items-center justify-center py-1 px-2 rounded bg-black/60 border border-black group-hover:border-[#E10600]/60 transition-colors">
-            <img src="/motoluv-logo.jpg" alt="Motoluv" className="h-7 md:h-8 w-auto object-contain" />
-          </div>
+          <img
+            src="/motoluv-logo.jpg"
+            alt="Motoluv"
+            className="h-10 md:h-11 w-auto max-h-12 object-contain transition-transform duration-200 group-hover:scale-105"
+          />
         </Link>
 
         {/* Center Nav */}
