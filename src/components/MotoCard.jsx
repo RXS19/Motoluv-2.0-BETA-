@@ -132,8 +132,8 @@ const MotoCard = ({ moto, showScore = true, showStatus = false }) => {
 
         <div className="absolute top-3 left-3 flex flex-col gap-1.5 items-start z-10 pointer-events-none">
           {moto.featured && (
-            <div className="bg-red-brand text-white text-[10px] font-bold tracking-widest uppercase px-2.5 py-1 rounded-sm flex items-center gap-1 shadow">
-              <Wrench size={10} /> DESTACADA
+            <div className="bg-red-brand text-white text-[10px] font-bold tracking-widest uppercase px-2.5 py-1 rounded-sm shadow">
+              DESTACADA
             </div>
           )}
           {shouldRenderStatusBadge && (

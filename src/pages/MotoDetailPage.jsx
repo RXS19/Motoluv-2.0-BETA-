@@ -610,8 +610,8 @@ const MotoDetailPage = () => {
             )}
 
             {moto.featured && (
-              <div className="absolute top-4 left-4 bg-red-brand text-white text-[10px] font-bold tracking-widest uppercase px-3 py-1.5 rounded-sm flex items-center gap-1">
-                <Wrench size={11} /> DESTACADA
+              <div className="absolute top-4 left-4 bg-red-brand text-white text-[10px] font-bold tracking-widest uppercase px-3 py-1.5 rounded-sm shadow">
+                DESTACADA
               </div>
             )}
 

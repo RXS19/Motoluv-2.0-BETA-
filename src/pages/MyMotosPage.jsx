@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Plus, Eye, Trash2, Wrench, Activity, Zap, Sparkles, Edit3, Lock, MessageCircle } from 'lucide-react';
+import { Plus, Eye, Trash2, Wrench, Activity, Zap, Edit3, Lock, MessageCircle } from 'lucide-react';
 import { motoApi } from '../services/api';
 import { toast } from '../hooks/use-toast';
 import { OPERATION_STATUSES, getStatusStyle } from '../utils/status';
@@ -173,8 +173,8 @@ const MyMotosPage = () => {
                         {style.label}
                       </span>
                       {m.is_boosted && (
-                        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-sm text-[10px] font-bold uppercase tracking-wider bg-gradient-to-r from-red-brand to-orange-500 text-white shadow">
-                          <Sparkles size={10} /> Destacada
+                        <span className="inline-flex items-center px-2.5 py-1 rounded-sm text-[10px] font-bold uppercase tracking-wider bg-gradient-to-r from-red-brand to-orange-500 text-white shadow">
+                          Destacada
                         </span>
                       )}
                     </div>
