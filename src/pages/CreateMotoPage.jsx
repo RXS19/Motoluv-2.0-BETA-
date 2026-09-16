@@ -6,7 +6,25 @@ import { toast } from '../hooks/use-toast';
 import { calculateCommission } from '../utils/commission';
 import { handleImageError } from '../utils/imageFallback';
 
-const BRANDS = ['Honda', 'Yamaha', 'Kawasaki', 'Suzuki', 'Ducati', 'Harley-Davidson', 'BMW', 'KTM', 'Triumph', 'Aprilia', 'Otra'];
+const BRANDS = [
+  'Aprilia',
+  'Bajaj',
+  'BMW',
+  'CFMOTO',
+  'Ducati',
+  'Hero',
+  'Honda',
+  'Italika',
+  'Kawasaki',
+  'KTM',
+  'Royal Enfield',
+  'Suzuki',
+  'Triumph',
+  'TVS',
+  'Vento',
+  'Yamaha',
+  'OTRA'
+];
 const CATEGORIES = ['Deportiva', 'Naked', 'Cruiser', 'Adventure', 'Scooter', 'Touring', 'Trail', 'Custom'];
 const CITIES = ['Ciudad de México', 'Estado de México', 'Nuevo León'];
 const MAX_IMAGES = 6;
