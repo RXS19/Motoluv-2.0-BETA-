@@ -570,12 +570,14 @@ const MotoDetailPage = () => {
         <span className="text-zinc-300">{moto.brand || 'Moto'} {moto.model || ''}</span>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        <div className="lg:col-span-2">
-          <div 
-            onClick={() => setIsLightboxOpen(true)}
-            className="relative aspect-[16/10] rounded-md overflow-hidden bg-[#111112] border border-white/5 group cursor-pointer"
-          >
+      <div className="flex flex-col gap-6 lg:gap-8 lg:grid lg:grid-cols-3">
+        <div className="contents lg:block lg:col-span-2">
+          {/* Galería de imágenes / Fotos */}
+          <div className="order-1">
+            <div 
+              onClick={() => setIsLightboxOpen(true)}
+              className="relative aspect-[16/10] rounded-md overflow-hidden bg-[#111112] border border-white/5 group cursor-pointer"
+            >
             <img 
               src={images[selectedImage] || resolveSafeImageUrl(FALLBACK_MOTO_IMAGE, 'moto')} 
               alt={moto.model || 'Motocicleta'} 
@@ -660,13 +662,14 @@ const MotoDetailPage = () => {
               </button>
             ))}
           </div>
+          </div>
 
-          <div className="mt-10">
+          <div className="order-3 mt-0 lg:mt-10">
             <h2 className="font-display font-bold text-white text-2xl uppercase tracking-wide mb-4">Descripción</h2>
             <p className="text-zinc-400 text-sm leading-relaxed">{moto.description || 'Sin descripción disponible.'}</p>
           </div>
 
-          <div className="mt-10">
+          <div className="order-4 mt-0 lg:mt-10">
             <h2 className="font-display font-bold text-white text-2xl uppercase tracking-wide mb-5">Ficha técnica</h2>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-4">
               {Object.entries(specs).map(([k, v]) => (
@@ -679,7 +682,7 @@ const MotoDetailPage = () => {
           </div>
 
           {/* REPORTE DE CERTIFICACIÓN E INSPECCIÓN MECÁNICA */}
-          <div className="mt-12">
+          <div className="order-5 mt-0 lg:mt-12">
             <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
               <div>
                 <div className="flex items-center gap-2">
@@ -895,8 +898,8 @@ const MotoDetailPage = () => {
           </div>
         </div>
 
-        <div className="space-y-5">
-          <div className="bg-[#111112] border border-black rounded-md p-6">
+        <div className="contents lg:block lg:col-span-1 lg:space-y-5">
+          <div className="order-2 bg-[#111112] border border-black rounded-md p-6">
             <div className="flex items-center justify-end gap-2 mb-2">
               {(() => {
                 const isOwnerOrSeller = Boolean(user && (user.id === moto.owner_id || user.id === moto.ownerId || user.id === moto.seller_id || user.id === moto.sellerId));
@@ -973,7 +976,7 @@ const MotoDetailPage = () => {
           </div>
 
           {/* BLOQUE DE APARTADO */}
-          <div className="bg-[#111112] border border-black rounded-md p-6 relative overflow-hidden">
+          <div className="order-6 bg-[#111112] border border-black rounded-md p-6 relative overflow-hidden">
             <div className="flex items-center justify-between mb-3">
               <h3 className="font-display font-bold text-white uppercase tracking-wide text-base flex items-center gap-2">
                 <BookmarkCheck size={18} className="text-red-brand" /> APARTADO
@@ -1614,7 +1617,7 @@ const MotoDetailPage = () => {
           )}
 
           {/* VENDEDOR */}
-          <div className="bg-[#111112] border border-white/5 rounded-md p-6">
+          <div className="order-7 bg-[#111112] border border-white/5 rounded-md p-6">
             <h3 className="font-display font-bold text-white uppercase tracking-wide text-sm mb-4">Vendedor</h3>
             <div className="flex items-center gap-3">
               <div className="w-11 h-11 rounded-full bg-red-brand/20 border border-red-brand/40 flex items-center justify-center font-bold text-red-brand">
