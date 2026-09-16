@@ -1,6 +1,6 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { Mail, MessageCircle, MapPin, Facebook, Instagram, Twitter } from 'lucide-react';
+import { Mail, Phone, MapPin, Facebook, Instagram, Twitter } from 'lucide-react';
 import { NovatechLogo } from './NovatechLogo';
 
 const Footer = () => {
@@ -55,7 +55,7 @@ const Footer = () => {
                   rel="noopener noreferrer"
                   className="flex items-center gap-2 hover:text-red-brand transition-colors cursor-pointer"
                 >
-                  <MessageCircle size={14} className="text-red-brand" /> +52 56 4304 8865 (WhatsApp)
+                  <Phone size={14} className="text-red-brand" /> +52 56 4304 8865
                 </a>
               </li>
               <li className="flex items-center gap-2"><MapPin size={14} className="text-red-brand" /> Ciudad de México, MX</li>
