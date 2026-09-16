@@ -945,7 +945,7 @@ const MotoDetailPage = () => {
                 <Gauge size={14} className="text-red-brand" /> {kmFormatted}
               </div>
               <div className="flex items-center gap-2 text-zinc-300">
-                <Wrench size={14} className="text-red-brand" /> {moto.engine || moto.displacement || 'Motor no especificado'}
+                <span className="text-red-brand font-bold text-xs leading-none">CC</span> {moto.engine || moto.displacement || 'Motor no especificado'}
               </div>
               <div className="flex items-center gap-2 text-zinc-300">
                 <Palette size={14} className="text-red-brand" /> {moto.color || 'Color no especificado'}
