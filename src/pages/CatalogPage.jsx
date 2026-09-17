@@ -23,7 +23,7 @@ const CatalogPage = () => {
     setLoading(true);
     setError(false);
     try {
-      const data = await motoApi.list({ limit: 200 });
+      const data = await motoApi.list({ limit: 20 });
       if (Array.isArray(data)) {
         setMotos(data);
       } else {

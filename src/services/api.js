@@ -98,7 +98,7 @@ export const motoApi = {
     // 1. Prioridad: Consultar directamente en Supabase
     if (isSupabaseConfigured && supabase) {
       try {
-        let query = supabase.from('motos').select('*');
+        let query = supabase.from('motos').select('id, brand, model, year, price, km, category, city, location, image, images, score, views, featured, status, apartado_status, is_apartada, owner_id');
 
         if (params.status) {
           query = query.eq('status', params.status);

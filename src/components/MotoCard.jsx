@@ -99,6 +99,8 @@ const MotoCard = ({ moto, showScore = true, showStatus = false }) => {
         <img 
           src={resolveSafeImageUrl(moto.image)} 
           alt={`${moto.brand} ${moto.model}`} 
+          loading="lazy"
+          decoding="async"
           onError={(e) => handleImageError(e, 'moto')}
           className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" 
         />
