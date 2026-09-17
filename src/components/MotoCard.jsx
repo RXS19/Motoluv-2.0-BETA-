@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Eye, MapPin, Star, Wrench, Heart } from 'lucide-react';
 import { getStatusStyle } from '../utils/status';
@@ -89,6 +89,37 @@ const MotoCard = ({ moto, showScore = true, showStatus = false }) => {
     String(moto.status || '').toUpperCase() === 'APARTADA'
   );
 
+  // Optimización de imágenes de Supabase mediante Image Transformations (width=800&quality=80)
+  const originalImageUrl = resolveSafeImageUrl(moto.image);
+  const transformedImageUrl = useMemo(() => {
+    if (originalImageUrl && typeof originalImageUrl === 'string' && originalImageUrl.includes('/storage/v1/object/public/')) {
+      const transformed = originalImageUrl.replace('/storage/v1/object/public/', '/storage/v1/render/image/public/');
+      const sep = transformed.includes('?') ? '&' : '?';
+      return `${transformed}${sep}width=800&quality=80`;
+    }
+    return originalImageUrl;
+  }, [originalImageUrl]);
+
+  const [imgSrc, setImgSrc] = useState(transformedImageUrl);
+  const hasFallenBackRef = useRef(false);
+
+  useEffect(() => {
+    setImgSrc(transformedImageUrl);
+    hasFallenBackRef.current = false;
+  }, [transformedImageUrl]);
+
+  const handleImageLoadError = (e) => {
+    if (!hasFallenBackRef.current && transformedImageUrl !== originalImageUrl) {
+      hasFallenBackRef.current = true;
+      if (e?.currentTarget) {
+        e.currentTarget.src = originalImageUrl;
+      }
+      setImgSrc(originalImageUrl);
+    } else {
+      handleImageError(e, 'moto');
+    }
+  };
+
   return (
     <Link
       to={`/motos/${moto.id}`}
@@ -97,11 +128,11 @@ const MotoCard = ({ moto, showScore = true, showStatus = false }) => {
     >
       <div className="relative aspect-[4/3] overflow-hidden bg-zinc-900">
         <img 
-          src={resolveSafeImageUrl(moto.image)} 
+          src={imgSrc} 
           alt={`${moto.brand} ${moto.model}`} 
           loading="lazy"
           decoding="async"
-          onError={(e) => handleImageError(e, 'moto')}
+          onError={handleImageLoadError}
           className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" 
         />
 
