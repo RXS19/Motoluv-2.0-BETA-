@@ -53,7 +53,7 @@ const SellerDashboard = () => {
   const [motos, setMotos] = useState([]);
   const [offers, setOffers] = useState([]);
   const [apartados, setApartados] = useState([]);
-  const [calcPrice, setCalcPrice] = useState(95000);
+  const [calcPrice, setCalcPrice] = useState(0);
   const [showBoostModal, setShowBoostModal] = useState(false);
   const [selectedMotoForBoost, setSelectedMotoForBoost] = useState(null);
   const [showInspectionModal, setShowInspectionModal] = useState(false);
