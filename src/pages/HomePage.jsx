@@ -46,7 +46,7 @@ const HomePage = () => {
   return (
     <div>
       {/* HERO */}
-      <section className="relative min-h-[88vh] lg:min-h-[92vh] flex items-center bg-[#0a0a0a] overflow-hidden select-none">
+      <section id="hero" className="relative min-h-[88vh] lg:min-h-[92vh] flex items-center bg-[#0a0a0a] overflow-hidden select-none">
         {/* Background Studio Lighting & Atmosphere */}
         <div className="absolute right-0 top-1/2 -translate-y-1/2 w-[750px] h-[600px] bg-red-600/10 rounded-full blur-[160px] pointer-events-none" />
         <div className="absolute right-[15%] top-1/3 -translate-y-1/2 w-[450px] h-[350px] bg-white/[0.04] rounded-full blur-[130px] pointer-events-none" />

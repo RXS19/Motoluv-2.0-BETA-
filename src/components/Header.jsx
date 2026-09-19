@@ -53,10 +53,28 @@ const Header = () => {
   const firstName = user?.name?.split(' ')[0] || 'Usuario';
   const initials = (user?.name || 'U').split(' ').map((s) => s[0]).slice(0, 2).join('').toUpperCase();
 
+  const handleLogoClick = (e) => {
+    if (location.pathname === '/') {
+      e.preventDefault();
+      const heroElement = document.getElementById('hero');
+      if (heroElement) {
+        heroElement.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      } else {
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      }
+      setOpen(false);
+    }
+  };
+
   return (
     <header className="sticky top-0 z-50 bg-[#0a0a0a]/85 backdrop-blur border-b border-black">
       <div className="max-w-7xl mx-auto px-5 lg:px-8 h-16 flex items-center justify-between">
-        <Link to="/" className="flex items-center group" title="Motoluv">
+        <Link
+          to="/"
+          onClick={handleLogoClick}
+          className="flex items-center group cursor-pointer"
+          title="Motoluv"
+        >
           <img
             src="/motoluv-logo.jpg"
             alt="Motoluv"
