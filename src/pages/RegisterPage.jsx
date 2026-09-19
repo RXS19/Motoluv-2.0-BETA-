@@ -21,6 +21,7 @@ const RegisterPage = () => {
   const handleOAuth = async (provider) => {
     setOauthLoading(provider);
     try {
+      trackEvent('sign_up', { method: provider });
       await loginWithOAuth(provider);
     } catch (err) {
       console.error('Error OAuth:', err);
@@ -72,6 +73,8 @@ const RegisterPage = () => {
         password: form.password,
         role: role || 'both',
       });
+
+      trackEvent('sign_up', { method: 'email' });
 
       if (role === 'vendedor' || role === 'both') {
         trackEvent('seller_registration');

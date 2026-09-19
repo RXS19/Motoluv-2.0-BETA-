@@ -4,6 +4,7 @@ import { Mail, Lock, ArrowRight, ShieldCheck } from 'lucide-react';
 import { toast } from '../hooks/use-toast';
 import { useAuth } from '../context/AuthContext';
 import GoogleAuthButton from '../components/GoogleAuthButton';
+import { trackEvent } from '../lib/analytics';
 
 const LoginPage = () => {
   const navigate = useNavigate();
@@ -35,6 +36,7 @@ const LoginPage = () => {
     setLoading(true);
     try {
       const u = await login(email, password);
+      trackEvent('login', { method: 'email' });
       toast({ 
         title: 'Bienvenido de vuelta', 
         description: `Hola ${u?.name ? u.name.split(' ')[0] : 'usuario'}, sesión iniciada correctamente.` 
@@ -56,6 +58,7 @@ const LoginPage = () => {
   const handleOAuth = async (provider) => {
     setOauthLoading(provider);
     try {
+      trackEvent('login', { method: provider });
       await loginWithOAuth(provider);
     } catch (err) {
       console.error('Error OAuth:', err);

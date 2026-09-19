@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { Handshake, ArrowRight, User, Phone, Mail, Building, Briefcase, MessageSquare, CheckCircle2, ChevronDown } from 'lucide-react';
 import { partnerApi } from '../services/api';
@@ -26,11 +26,24 @@ const PartnersPage = () => {
     message: '',
   });
 
-  const update = (k, v) => setForm((f) => ({ ...f, [k]: v }));
+  const hasStartedRef = useRef(false);
+
+  const handleFormStart = () => {
+    if (!hasStartedRef.current) {
+      hasStartedRef.current = true;
+      trackEvent('partner_form_start');
+    }
+  };
+
+  const update = (k, v) => {
+    handleFormStart();
+    setForm((f) => ({ ...f, [k]: v }));
+  };
 
   const submit = async (e) => {
     e.preventDefault();
     if (!form.name.trim() || !form.company_name.trim() || !form.category || !form.phone.trim()) {
+      trackEvent('partner_form_error', { error_type: 'validation_error' });
       toast({
         title: 'Datos incompletos',
         description: 'Por favor completa los campos obligatorios (Nombre, Empresa, Giro y Teléfono).',
@@ -40,9 +53,11 @@ const PartnersPage = () => {
     setLoading(true);
     try {
       await partnerApi.apply(form);
+      trackEvent('partner_form_submit', { category: form.category });
       setSuccess(true);
       toast({ title: '¡Solicitud enviada!', description: 'Nuestro equipo te contactará muy pronto.' });
     } catch (err) {
+      trackEvent('partner_form_error', { error_type: 'submission_error' });
       toast({ title: 'Error al enviar', description: err?.response?.data?.detail || 'Intenta de nuevo.' });
     } finally {
       setLoading(false);
@@ -108,7 +123,7 @@ const PartnersPage = () => {
           </div>
         </div>
 
-        <form onSubmit={submit} className="bg-[#111112] border border-white/10 rounded-md p-6 md:p-8 shadow-2xl relative">
+        <form onSubmit={submit} onFocus={handleFormStart} className="bg-[#111112] border border-white/10 rounded-md p-6 md:p-8 shadow-2xl relative">
           <div className="absolute top-0 right-0 w-32 h-32 bg-[#E10600]/5 rounded-bl-full pointer-events-none" />
           <h2 className="font-display font-bold text-white text-2xl uppercase mb-2">Formulario de registro</h2>
           <p className="text-xs text-zinc-400 mb-6">Ingresa tus datos y los de tu empresa para incorporarte a la red.</p>
