@@ -46,3 +46,29 @@ export const trackPageView = (path) => {
     });
   }
 };
+
+/**
+ * Tracks a custom event in Google Analytics 4
+ * @param {string} eventName
+ * @param {Object} [params]
+ */
+export const trackEvent = (eventName, params = {}) => {
+  if (typeof window === 'undefined' || !eventName) return;
+
+  if (!isInitialized) {
+    initGA();
+  }
+
+  if (typeof window.gtag === 'function') {
+    // Filter out undefined values to keep payloads clean
+    const cleanParams = Object.entries(params).reduce((acc, [key, value]) => {
+      if (value !== undefined && value !== null) {
+        acc[key] = value;
+      }
+      return acc;
+    }, {});
+
+    window.gtag('event', eventName, cleanParams);
+  }
+};
+

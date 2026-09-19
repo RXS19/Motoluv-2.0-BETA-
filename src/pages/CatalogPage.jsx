@@ -1,7 +1,8 @@
-import React, { useEffect, useMemo, useState, useCallback } from 'react';
+import React, { useEffect, useMemo, useState, useCallback, useRef } from 'react';
 import { Search, SlidersHorizontal, X, AlertCircle, RefreshCw, Bike } from 'lucide-react';
 import MotoCard from '../components/MotoCard';
 import { motoApi } from '../services/api';
+import { trackEvent } from '../lib/analytics';
 
 const BRANDS = ['Honda', 'Yamaha', 'Kawasaki', 'Suzuki', 'Ducati', 'Harley-Davidson', 'BMW', 'KTM', 'Triumph', 'Aprilia'];
 const CATEGORIES = ['Deportiva', 'Naked', 'Cruiser', 'Adventure', 'Scooter', 'Touring', 'Trail', 'Custom'];
@@ -41,6 +42,25 @@ const CatalogPage = () => {
   useEffect(() => {
     loadMotos();
   }, [loadMotos]);
+
+  // GA4: catalog_view on initial catalog consultation
+  useEffect(() => {
+    trackEvent('catalog_view');
+  }, []);
+
+  // GA4: search (debounced, without PII)
+  const lastSearchTermRef = useRef('');
+  useEffect(() => {
+    const term = q.trim();
+    if (!term) return;
+    const timer = setTimeout(() => {
+      if (term !== lastSearchTermRef.current) {
+        lastSearchTermRef.current = term;
+        trackEvent('search', { search_term: term });
+      }
+    }, 600);
+    return () => clearTimeout(timer);
+  }, [q]);
 
   const filtered = useMemo(() => {
     let list = motos.filter((m) => {
@@ -96,7 +116,11 @@ const CatalogPage = () => {
         <select
           id="catalog-sort-select"
           value={sort}
-          onChange={(e) => setSort(e.target.value)}
+          onChange={(e) => {
+            const val = e.target.value;
+            setSort(val);
+            trackEvent('sort_apply', { sort_type: val });
+          }}
           className="px-4 py-3.5 bg-[#111112] border border-white/10 text-white text-sm rounded-sm outline-none focus:border-red-brand"
         >
           <option value="featured">Destacadas</option>
@@ -133,7 +157,11 @@ const CatalogPage = () => {
               <label className="text-xs text-zinc-500 uppercase tracking-widest mb-2 block font-medium">Marca</label>
               <select
                 value={brand}
-                onChange={(e) => setBrand(e.target.value)}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  setBrand(val);
+                  trackEvent('filter_apply', { filter_type: 'brand', filter_value: val });
+                }}
                 className="w-full px-3 py-2.5 bg-[#0a0a0a] border border-white/10 text-white text-sm rounded-sm outline-none focus:border-red-brand"
               >
                 <option value="all">Todas las marcas</option>
@@ -144,7 +172,11 @@ const CatalogPage = () => {
               <label className="text-xs text-zinc-500 uppercase tracking-widest mb-2 block font-medium">Categoría</label>
               <select
                 value={cat}
-                onChange={(e) => setCat(e.target.value)}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  setCat(val);
+                  trackEvent('filter_apply', { filter_type: 'category', filter_value: val });
+                }}
                 className="w-full px-3 py-2.5 bg-[#0a0a0a] border border-white/10 text-white text-sm rounded-sm outline-none focus:border-red-brand"
               >
                 <option value="all">Todas las categorías</option>
@@ -155,7 +187,11 @@ const CatalogPage = () => {
               <label className="text-xs text-zinc-500 uppercase tracking-widest mb-2 block font-medium">Ciudad</label>
               <select
                 value={city}
-                onChange={(e) => setCity(e.target.value)}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  setCity(val);
+                  trackEvent('filter_apply', { filter_type: 'city', filter_value: val });
+                }}
                 className="w-full px-3 py-2.5 bg-[#0a0a0a] border border-white/10 text-white text-sm rounded-sm outline-none focus:border-red-brand"
               >
                 <option value="all">Todas las ciudades</option>
@@ -173,6 +209,12 @@ const CatalogPage = () => {
                 step="5000"
                 value={maxPrice}
                 onChange={(e) => setMaxPrice(Number(e.target.value))}
+                onMouseUp={(e) => {
+                  trackEvent('filter_apply', { filter_type: 'max_price', filter_value: Number(e.target.value) });
+                }}
+                onTouchEnd={(e) => {
+                  trackEvent('filter_apply', { filter_type: 'max_price', filter_value: Number(e.target.value) });
+                }}
                 className="w-full accent-red-500 cursor-pointer"
               />
             </div>

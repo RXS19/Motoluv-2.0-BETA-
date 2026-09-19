@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { Handshake, ArrowRight, User, Phone, Mail, Building, Briefcase, MessageSquare, CheckCircle2, ChevronDown } from 'lucide-react';
 import { partnerApi } from '../services/api';
 import { toast } from '../hooks/use-toast';
+import { trackEvent } from '../lib/analytics';
 
 const GIRO_OPTIONS = [
   { id: 'Talleres', label: 'Talleres' },
@@ -124,7 +125,13 @@ const PartnersPage = () => {
               <div className="relative">
                 <select
                   value={form.category}
-                  onChange={(e) => update('category', e.target.value)}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    update('category', val);
+                    if (val) {
+                      trackEvent('partner_category_select', { category: val });
+                    }
+                  }}
                   required
                   className="w-full pl-4 pr-10 py-3 bg-[#0a0a0a] border border-white/10 focus:border-[#E10600] text-white text-sm rounded-sm outline-none transition-colors appearance-none cursor-pointer"
                 >

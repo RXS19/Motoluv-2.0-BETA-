@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useEffect } from 'react';
 import { useAuth } from './AuthContext';
 import { toast } from '../hooks/use-toast';
 import { supabase, isSupabaseConfigured } from '../lib/supabase';
+import { trackEvent } from '../lib/analytics';
 
 const FavoritesContext = createContext({
   favorites: [],
@@ -114,6 +115,10 @@ export const FavoritesProvider = ({ children }) => {
       };
       const updated = [motoToSave, ...favorites.filter((m) => String(m.id) !== String(moto.id))];
       saveFavoritesState(updated);
+      trackEvent('favorite', {
+        item_id: moto.id,
+        item_name: `${moto.brand || ''} ${moto.model || ''}`.trim() || 'Motocicleta',
+      });
       toast({
         title: '❤️ Guardada en tus favoritos',
         description: `${moto.brand || ''} ${moto.model || ''} ahora está disponible en tu perfil en "Motos guardadas".`,

@@ -1,6 +1,6 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
-import { ArrowLeft, MapPin, Calendar, Wrench, Palette, Gauge, Award, Eye, Star, Shield, ChevronRight, ChevronLeft, MessageCircle, User, Activity, Lock, CheckCircle2, BookmarkCheck, CreditCard, X, AlertCircle, FileText, Download, Printer, ShieldCheck, CheckCheck, Heart, Clock } from 'lucide-react';
+import { ArrowLeft, MapPin, Calendar, Wrench, Palette, Gauge, Award, Eye, Star, Shield, ChevronRight, ChevronLeft, MessageCircle, User, Activity, Lock, CheckCircle2, BookmarkCheck, CreditCard, X, AlertCircle, FileText, Download, Printer, ShieldCheck, CheckCheck, Heart, Clock, Share2 } from 'lucide-react';
 import MotoCard from '../components/MotoCard';
 import ImageLightboxModal from '../components/ImageLightboxModal';
 import { motoApi, offerApi, apartadoApi, certificationApi } from '../services/api';
@@ -8,6 +8,7 @@ import { useAuth } from '../context/AuthContext';
 import { useFavorites } from '../context/FavoritesContext';
 import { toast } from '../hooks/use-toast';
 import { getStatusStyle } from '../utils/status';
+import { trackEvent } from '../lib/analytics';
 import { handleImageError, resolveSafeImageUrl, FALLBACK_MOTO_IMAGE } from '../utils/imageFallback';
 import { getCachedMotoViews, setCachedMotoViews } from '../utils/motoNavigation';
 import { censorSurname } from '../utils/namePrivacy';
@@ -79,6 +80,52 @@ const MotoDetailPage = () => {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [images.length]);
 
+  const hasTriggeredMakeOfferRef = useRef(false);
+  const handleInitiateOffer = () => {
+    if (!hasTriggeredMakeOfferRef.current && moto?.id) {
+      hasTriggeredMakeOfferRef.current = true;
+      trackEvent('make_offer', {
+        item_id: moto.id,
+      });
+    }
+  };
+
+  const handleShare = async () => {
+    if (!moto?.id) return;
+    const shareData = {
+      title: `${moto.brand || ''} ${moto.model || ''}`.trim() || 'Motocicleta en Motoluv',
+      text: `Mira esta ${moto.brand || ''} ${moto.model || ''} en Motoluv`,
+      url: window.location.href,
+    };
+
+    trackEvent('share_item', {
+      item_id: moto.id,
+      item_name: `${moto.brand || ''} ${moto.model || ''}`.trim() || 'Motocicleta',
+    });
+
+    if (navigator.share && navigator.canShare && navigator.canShare(shareData)) {
+      try {
+        await navigator.share(shareData);
+      } catch (err) {
+        if (err.name !== 'AbortError') {
+          copyToClipboard();
+        }
+      }
+    } else {
+      copyToClipboard();
+    }
+  };
+
+  const copyToClipboard = () => {
+    if (navigator.clipboard?.writeText) {
+      navigator.clipboard.writeText(window.location.href);
+      toast({
+        title: '¡Enlace copiado!',
+        description: 'El enlace de la motocicleta ha sido copiado al portapapeles.',
+      });
+    }
+  };
+
   useEffect(() => {
     setLoading(true);
     motoApi.get(id).then((m) => {
@@ -89,6 +136,15 @@ const MotoDetailPage = () => {
         } else if (typeof m.views === 'number') {
           setCachedMotoViews(id, m.views);
         }
+
+        // GA4: view_item event
+        trackEvent('view_item', {
+          item_id: m.id,
+          item_name: `${m.brand || ''} ${m.model || ''}`.trim() || m.title || 'Motocicleta',
+          item_brand: m.brand || undefined,
+          item_category: m.category || undefined,
+          price: typeof m.price === 'number' ? m.price : Number(m.price) || undefined,
+        });
       }
       setMoto(m);
       if (m && m.price !== null && m.price !== undefined) {
@@ -387,6 +443,15 @@ const MotoDetailPage = () => {
 
       const checkoutUrl = checkoutData?.checkout_url || checkoutData?.url;
       if (checkoutUrl) {
+        // GA4: begin_checkout event (ejecutar antes de redirigir)
+        trackEvent('begin_checkout', {
+          item_id: moto.id,
+          item_name: `${moto.brand || ''} ${moto.model || ''}`.trim() || moto.title || 'Motocicleta',
+          item_brand: moto.brand || undefined,
+          item_category: moto.category || undefined,
+          value: typeof moto.price === 'number' ? moto.price : Number(moto.price) || 0,
+          currency: 'MXN',
+        });
         // Redirigir al usuario al checkout_url de Stripe
         window.location.href = checkoutUrl;
       } else {
@@ -402,6 +467,7 @@ const MotoDetailPage = () => {
   };
 
   const handleOffer = async () => {
+    handleInitiateOffer();
     if (!user) {
       toast({ title: 'Inicia sesión', description: 'Necesitas una cuenta para enviar tu oferta.' });
       navigate('/iniciar-sesion');
@@ -425,6 +491,11 @@ const MotoDetailPage = () => {
         moto_id: moto.id,
         amount: Number(offerAmount) || (moto.price ? Number(moto.price) : 0),
         ...(selectedPkg ? { package: selectedPkg } : { package: null }),
+      });
+      // GA4: offer_submitted (sin PII)
+      trackEvent('offer_submitted', {
+        item_id: moto.id,
+        amount: Number(offerAmount) || (moto.price ? Number(moto.price) : 0),
       });
       toast({
         title: '¡Oferta enviada!',
@@ -617,28 +688,42 @@ const MotoDetailPage = () => {
               </div>
             )}
 
-            {/* Favorite Heart Button on Main Image */}
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                toggleFavorite(moto);
-              }}
-              aria-label={fav ? 'Quitar de favoritos' : 'Guardar en favoritos'}
-              title={fav ? 'Quitar de tus motos guardadas' : 'Guardar en tus motos guardadas'}
-              className={`absolute top-4 right-4 z-20 p-2.5 rounded-full transition-all duration-300 shadow-xl flex items-center justify-center ${
-                fav
-                  ? 'bg-red-brand text-white scale-105 shadow-red-brand/50'
-                  : 'bg-black/70 text-white/90 hover:text-white hover:bg-black/90 hover:scale-110 border border-white/10'
-              }`}
-            >
-              <Heart
-                size={18}
-                className={`transition-all duration-200 ${
-                  fav ? 'fill-white stroke-white' : 'stroke-current stroke-2 hover:fill-red-brand/40'
+            {/* Action Buttons on Main Image (Share & Favorite) */}
+            <div className="absolute top-4 right-4 z-20 flex items-center gap-2">
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleShare();
+                }}
+                aria-label="Compartir motocicleta"
+                title="Compartir motocicleta"
+                className="p-2.5 rounded-full transition-all duration-300 shadow-xl flex items-center justify-center bg-black/70 text-white/90 hover:text-white hover:bg-black/90 hover:scale-110 border border-white/10"
+              >
+                <Share2 size={18} />
+              </button>
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  toggleFavorite(moto);
+                }}
+                aria-label={fav ? 'Quitar de favoritos' : 'Guardar en favoritos'}
+                title={fav ? 'Quitar de tus motos guardadas' : 'Guardar en tus motos guardadas'}
+                className={`p-2.5 rounded-full transition-all duration-300 shadow-xl flex items-center justify-center ${
+                  fav
+                    ? 'bg-red-brand text-white scale-105 shadow-red-brand/50'
+                    : 'bg-black/70 text-white/90 hover:text-white hover:bg-black/90 hover:scale-110 border border-white/10'
                 }`}
-              />
-            </button>
+              >
+                <Heart
+                  size={18}
+                  className={`transition-all duration-200 ${
+                    fav ? 'fill-white stroke-white' : 'stroke-current stroke-2 hover:fill-red-brand/40'
+                  }`}
+                />
+              </button>
+            </div>
             {scoreValue !== null && (
               <div className="absolute bottom-4 left-4 bg-black/70 backdrop-blur text-white text-sm font-medium px-3 py-1.5 rounded-sm flex items-center gap-1.5">
                 <Wrench size={13} className="text-red-brand" /> Score {scoreValue.toFixed(1)}/5
@@ -958,19 +1043,28 @@ const MotoDetailPage = () => {
               </div>
             </div>
 
-            {/* Quick Favorites Action Button */}
-            <div className="mt-5 pt-4 border-t border-white/5">
+            {/* Quick Favorites and Share Action Buttons */}
+            <div className="mt-5 pt-4 border-t border-white/5 flex gap-2">
               <button
                 type="button"
                 onClick={() => toggleFavorite(moto)}
-                className={`w-full py-3 px-4 rounded-sm border text-xs font-bold uppercase tracking-wider flex items-center justify-center gap-2.5 transition-all ${
+                className={`flex-1 py-3 px-3 rounded-sm border text-xs font-bold uppercase tracking-wider flex items-center justify-center gap-2 transition-all ${
                   fav
                     ? 'bg-red-brand/15 border-red-brand/50 text-red-brand hover:bg-red-brand/25 shadow-sm'
                     : 'bg-[#18181c] border-white/10 text-zinc-300 hover:text-white hover:border-white/20 hover:bg-[#202026]'
                 }`}
               >
                 <Heart size={16} className={fav ? 'fill-red-brand text-red-brand' : 'text-zinc-400'} />
-                <span>{fav ? 'Guardada en tus favoritos' : 'Guardar en favoritos'}</span>
+                <span>{fav ? 'Guardada' : 'Favoritos'}</span>
+              </button>
+              <button
+                type="button"
+                onClick={handleShare}
+                className="py-3 px-4 rounded-sm border border-white/10 bg-[#18181c] text-zinc-300 hover:text-white hover:border-white/20 hover:bg-[#202026] text-xs font-bold uppercase tracking-wider flex items-center justify-center gap-2 transition-all cursor-pointer"
+                title="Compartir motocicleta"
+              >
+                <Share2 size={16} className="text-zinc-400" />
+                <span>Compartir</span>
               </button>
             </div>
           </div>
@@ -1573,6 +1667,7 @@ const MotoDetailPage = () => {
                             type="number"
                             value={offerAmount}
                             onChange={(e) => setOfferAmount(e.target.value)}
+                            onFocus={handleInitiateOffer}
                             placeholder="Ej. 120000"
                             className="w-full px-4 py-2.5 bg-[#0a0a0a] border border-white/10 focus:border-red-brand text-white text-sm rounded-sm outline-none transition-colors"
                           />

@@ -6,6 +6,7 @@ import { supabase, isSupabaseConfigured } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext';
 import { toast } from '../hooks/use-toast';
 import { censorSurname } from '../utils/namePrivacy';
+import { trackEvent } from '../lib/analytics';
 
 const OfferRow = ({ offer, isSeller, onUpdate, onOpenReject }) => {
   const [loading, setLoading] = useState(false);
@@ -14,6 +15,11 @@ const OfferRow = ({ offer, isSeller, onUpdate, onOpenReject }) => {
     setLoading(true);
     try {
       await offerApi.respond(offer.id, 'ACEPTADA');
+      trackEvent('offer_accepted', {
+        offer_id: offer.id,
+        moto_id: offer.moto_id,
+        amount: offer.amount,
+      });
       toast({ title: 'Oferta Aceptada', description: 'Se ha notificado al comprador.' });
       onUpdate && onUpdate();
     } catch {

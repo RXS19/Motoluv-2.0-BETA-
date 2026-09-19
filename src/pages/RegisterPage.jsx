@@ -4,6 +4,7 @@ import { User, Mail, Phone, Lock, ArrowRight, Check, Bike } from 'lucide-react';
 import { toast } from '../hooks/use-toast';
 import { useAuth } from '../context/AuthContext';
 import GoogleAuthButton from '../components/GoogleAuthButton';
+import { trackEvent } from '../lib/analytics';
 
 const RegisterPage = () => {
   const navigate = useNavigate();
@@ -71,6 +72,10 @@ const RegisterPage = () => {
         password: form.password,
         role: role || 'both',
       });
+
+      if (role === 'vendedor' || role === 'both') {
+        trackEvent('seller_registration');
+      }
 
       if (res?.requiresEmailConfirmation) {
         toast({

@@ -5,6 +5,7 @@ import { motoApi, uploadApi, resolveImageUrl } from '../services/api';
 import { toast } from '../hooks/use-toast';
 import { calculateCommission } from '../utils/commission';
 import { handleImageError } from '../utils/imageFallback';
+import { trackEvent } from '../lib/analytics';
 
 const BRANDS = [
   'Aprilia',
@@ -48,6 +49,23 @@ const CreateMotoPage = () => {
     price: '', description: '',
   });
   const [images, setImages] = useState([]); // array of { url }
+  const isSubmittedRef = useRef(false);
+
+  // GA4: publication_start when starting a new publication
+  useEffect(() => {
+    if (!isEditing) {
+      trackEvent('publication_start');
+    }
+  }, [isEditing]);
+
+  // GA4: publication_abandon if user leaves the flow before submitting successfully
+  useEffect(() => {
+    return () => {
+      if (!isEditing && !isSubmittedRef.current) {
+        trackEvent('publication_abandon');
+      }
+    };
+  }, [isEditing]);
 
   // Load existing moto if in edit mode
   useEffect(() => {
@@ -192,6 +210,14 @@ const CreateMotoPage = () => {
         const moto = await motoApi.create({
           ...payload,
           status: 'EN REVISIÓN',
+        });
+        isSubmittedRef.current = true;
+        // GA4: publication_submit & publication_created
+        trackEvent('publication_submit');
+        trackEvent('publication_created', {
+          item_id: moto?.id,
+          item_brand: moto?.brand || form.brand,
+          item_category: moto?.category || form.category,
         });
         toast({
           title: 'Publicación enviada a revisión',

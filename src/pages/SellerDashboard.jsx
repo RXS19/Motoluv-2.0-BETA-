@@ -42,6 +42,7 @@ import { generateAndDownloadInspectionIcs } from '../utils/calendar';
 import ScheduleDropdownDatePicker from '../components/dashboard/ScheduleDropdownDatePicker';
 import { toast } from '../hooks/use-toast';
 import { handleMotoLinkClick } from '../utils/motoNavigation';
+import { trackEvent } from '../lib/analytics';
 
 const SellerDashboard = () => {
   const { user } = useAuth();
@@ -622,6 +623,7 @@ const getApartadoScheduleRange = (createdAt) => {
   const handleAcceptOffer = async (offerId) => {
     try {
       await offerApi.respond(offerId, 'ACEPTADA');
+      trackEvent('offer_accepted', { offer_id: offerId });
       toast({ title: '¡Oferta Aceptada!', description: 'Se ha notificado la aceptación de la oferta.' });
       loadData();
     } catch {
