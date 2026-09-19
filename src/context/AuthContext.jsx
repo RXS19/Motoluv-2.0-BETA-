@@ -9,6 +9,7 @@ import {
   syncGoogleUserProfile,
   logAuthDiagnostic,
 } from '../lib/supabase';
+import { trackEvent } from '../lib/analytics';
 
 const STORAGE_ACTIVE_VIEW_KEY = 'motoluv_active_view';
 
@@ -230,6 +231,34 @@ export const AuthProvider = ({ children }) => {
           }
           if (event === 'SIGNED_IN') {
             void syncKommoRegistration();
+
+            // Disparar GA4 sign_up o login únicamente después de SIGNED_IN exitoso cuando el flujo fue iniciado por OAuth
+            try {
+              const flow = localStorage.getItem('motoluv_oauth_flow') || sessionStorage.getItem('motoluv_oauth_flow');
+              const provider = localStorage.getItem('motoluv_oauth_provider') || sessionStorage.getItem('motoluv_oauth_provider') || 'google';
+              const tsStr = localStorage.getItem('motoluv_oauth_timestamp');
+              const isRecent = tsStr ? (Date.now() - Number(tsStr)) < 15 * 60 * 1000 : true;
+
+              if (flow && isRecent) {
+                if (flow === 'register') {
+                  trackEvent('sign_up', { method: provider });
+                } else if (flow === 'login') {
+                  trackEvent('login', { method: provider });
+                }
+              }
+            } catch {
+              // ignore storage errors
+            } finally {
+              try {
+                localStorage.removeItem('motoluv_oauth_flow');
+                localStorage.removeItem('motoluv_oauth_provider');
+                localStorage.removeItem('motoluv_oauth_timestamp');
+                sessionStorage.removeItem('motoluv_oauth_flow');
+                sessionStorage.removeItem('motoluv_oauth_provider');
+              } catch {
+                // ignore
+              }
+            }
           }
         } else if (event === 'SIGNED_OUT' || (!currentSession && event !== 'INITIAL_SESSION')) {
           if (mounted) {

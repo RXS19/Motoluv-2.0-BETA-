@@ -81,8 +81,15 @@ export const FavoritesProvider = ({ children }) => {
     const exists = isFavorite(moto.id);
 
     if (exists) {
+      const existing = favorites.find((m) => String(m.id) === String(moto.id)) || moto;
       const updated = favorites.filter((m) => String(m.id) !== String(moto.id));
       saveFavoritesState(updated);
+      trackEvent('favorite', {
+        item_id: moto.id,
+        item_name: `${existing.brand || moto.brand || ''} ${existing.model || moto.model || ''}`.trim() || 'Motocicleta',
+        price: Number(existing.price) || Number(moto.price) || 0,
+        favorite_action: 'remove',
+      });
       toast({
         title: 'Eliminada de favoritos',
         description: `${moto.brand || ''} ${moto.model || ''} se eliminó de tus motos guardadas.`,
@@ -118,6 +125,8 @@ export const FavoritesProvider = ({ children }) => {
       trackEvent('favorite', {
         item_id: moto.id,
         item_name: `${moto.brand || ''} ${moto.model || ''}`.trim() || 'Motocicleta',
+        price: Number(moto.price) || 0,
+        favorite_action: 'add',
       });
       toast({
         title: '❤️ Guardada en tus favoritos',
@@ -141,8 +150,17 @@ export const FavoritesProvider = ({ children }) => {
 
   const removeFavorite = (motoId) => {
     if (!motoId) return;
+    const existing = favorites.find((m) => String(m.id) === String(motoId));
     const updated = favorites.filter((m) => String(m.id) !== String(motoId));
     saveFavoritesState(updated);
+    if (existing) {
+      trackEvent('favorite', {
+        item_id: existing.id,
+        item_name: `${existing.brand || ''} ${existing.model || ''}`.trim() || 'Motocicleta',
+        price: Number(existing.price) || 0,
+        favorite_action: 'remove',
+      });
+    }
     toast({
       title: 'Eliminada de favoritos',
       description: 'La motocicleta se eliminó de tus motos guardadas.',

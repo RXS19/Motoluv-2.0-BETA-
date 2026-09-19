@@ -21,9 +21,26 @@ const RegisterPage = () => {
   const handleOAuth = async (provider) => {
     setOauthLoading(provider);
     try {
-      trackEvent('sign_up', { method: provider });
+      try {
+        localStorage.setItem('motoluv_oauth_flow', 'register');
+        localStorage.setItem('motoluv_oauth_provider', provider);
+        localStorage.setItem('motoluv_oauth_timestamp', Date.now().toString());
+        sessionStorage.setItem('motoluv_oauth_flow', 'register');
+        sessionStorage.setItem('motoluv_oauth_provider', provider);
+      } catch {
+        // ignore storage errors
+      }
       await loginWithOAuth(provider);
     } catch (err) {
+      try {
+        localStorage.removeItem('motoluv_oauth_flow');
+        localStorage.removeItem('motoluv_oauth_provider');
+        localStorage.removeItem('motoluv_oauth_timestamp');
+        sessionStorage.removeItem('motoluv_oauth_flow');
+        sessionStorage.removeItem('motoluv_oauth_provider');
+      } catch {
+        // ignore
+      }
       console.error('Error OAuth:', err);
       toast({ title: 'Error OAuth', description: err?.message || 'No se pudo conectar con el proveedor.' });
       setOauthLoading(null);
