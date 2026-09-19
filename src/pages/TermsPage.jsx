@@ -25,7 +25,6 @@ import {
   FileCheck2,
   PhoneCall,
 } from 'lucide-react';
-import { MotoluvLogo } from '../components/MotoluvLogo';
 
 export default function TermsPage() {
   useEffect(() => {
@@ -43,8 +42,12 @@ export default function TermsPage() {
           <ArrowLeft size={16} className="text-red-brand" />
           <span>Volver al inicio</span>
         </Link>
-        <Link to="/" className="inline-block" aria-label="Motoluv">
-          <MotoluvLogo className="h-7 w-auto" />
+        <Link to="/" className="flex items-center group" title="Motoluv" aria-label="Motoluv">
+          <img
+            src="/motoluv-logo.jpg"
+            alt="Motoluv"
+            className="h-[38px] sm:h-[42px] md:h-[44px] w-auto max-h-[48px] object-contain transition-transform duration-200 group-hover:scale-105"
+          />
         </Link>
       </header>
 
