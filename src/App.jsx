@@ -1,6 +1,6 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useRef } from 'react';
 import './App.css';
-import { BrowserRouter, Routes, Route, useLocation } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, useLocation, useNavigate } from 'react-router-dom';
 import Layout from './components/Layout';
 import HomePage from './pages/HomePage';
 import CatalogPage from './pages/CatalogPage';
@@ -56,6 +56,63 @@ function ScrollToTop() {
   return null;
 }
 
+function OAuthRedirectHandler() {
+  const { user, session, loading } = useAuth();
+  const location = useLocation();
+  const navigate = useNavigate();
+  const redirectedRef = useRef(false);
+
+  // Detectar si la carga de la página proviene de un retorno de OAuth (hash/tokens en URL o flujo iniciado)
+  const wasOAuthReturnRef = useRef(
+    typeof window !== 'undefined' && Boolean(
+      (window.location.hash && (
+        window.location.hash.includes('access_token') ||
+        window.location.hash.includes('refresh_token') ||
+        window.location.hash.includes('id_token') ||
+        window.location.hash.includes('token_type=bearer') ||
+        window.location.hash.includes('error_description')
+      )) ||
+      (window.location.search && /[?&]code=/.test(window.location.search)) ||
+      (() => {
+        try {
+          return Boolean(
+            localStorage.getItem('motoluv_oauth_flow') ||
+            sessionStorage.getItem('motoluv_oauth_flow')
+          );
+        } catch {
+          return false;
+        }
+      })()
+    )
+  );
+
+  useEffect(() => {
+    if (redirectedRef.current) return;
+    if (loading) return;
+
+    const hasAuth = Boolean(user || session);
+    if (!hasAuth) return;
+
+    const currentHash = location.hash || (typeof window !== 'undefined' ? window.location.hash : '');
+    const currentSearch = location.search || (typeof window !== 'undefined' ? window.location.search : '');
+    const hasOAuthHash =
+      currentHash.includes('access_token') ||
+      currentHash.includes('refresh_token') ||
+      currentHash.includes('id_token') ||
+      currentHash.includes('token_type=bearer') ||
+      currentHash.includes('error_description') ||
+      /[?&]code=/.test(currentSearch);
+
+    // Cuando exista sesión y el retorno OAuth dejó al usuario en / o en una URL con hash de OAuth
+    if ((wasOAuthReturnRef.current && location.pathname === '/') || hasOAuthHash) {
+      redirectedRef.current = true;
+      navigate('/panel', { replace: true });
+    }
+  }, [user, session, loading, location.pathname, location.hash, location.search, navigate]);
+
+  return null;
+}
+
 function App() {
   return (
     <ErrorBoundary>
@@ -66,6 +123,7 @@ function App() {
               <BrowserRouter>
                 <AnalyticsTracker />
                 <ScrollToTop />
+                <OAuthRedirectHandler />
                 <Routes>
                   <Route element={<Layout />}>
                     <Route path="/" element={<HomePage />} />
