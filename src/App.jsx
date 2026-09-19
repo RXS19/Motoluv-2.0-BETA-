@@ -25,6 +25,22 @@ import { AuthProvider, useAuth } from './context/AuthContext';
 import { CartProvider } from './context/CartContext';
 import { FavoritesProvider } from './context/FavoritesContext';
 import { Toaster } from './components/ui/toaster';
+import { initGA, trackPageView } from './lib/analytics';
+
+function AnalyticsTracker() {
+  const location = useLocation();
+
+  useEffect(() => {
+    initGA();
+  }, []);
+
+  useEffect(() => {
+    const page = location.pathname + location.search;
+    trackPageView(page);
+  }, [location.pathname, location.search]);
+
+  return null;
+}
 
 function ScrollToTop() {
   const { pathname, search } = useLocation();
@@ -48,6 +64,7 @@ function App() {
           <FavoritesProvider>
             <CartProvider>
               <BrowserRouter>
+                <AnalyticsTracker />
                 <ScrollToTop />
                 <Routes>
                   <Route element={<Layout />}>
