@@ -9,7 +9,7 @@ const GIRO_OPTIONS = [
   { id: 'Tiendas de accesorios de motos', label: 'Tiendas de accesorios de motos' },
   { id: 'Agencias de motocicletas', label: 'Agencias de motocicletas' },
   { id: 'Financieras', label: 'Financieras' },
-  { id: 'Eventos', label: 'Eventos' },
+  { id: 'Seguros', label: 'Seguros' },
 ];
 
 const PartnersPage = () => {
@@ -83,7 +83,7 @@ const PartnersPage = () => {
             Súmate a <br /><span className="text-[#E10600]">nuestra red</span>
           </h1>
           <p className="text-zinc-300 mt-6 text-base leading-relaxed max-w-md">
-            Conectamos talleres, tiendas de accesorios, agencias, financieras y organizadores de eventos con la comunidad biker más activa de México.
+            Conectamos talleres, tiendas de accesorios, agencias, financieras y aseguradoras con la comunidad biker más activa de México.
           </p>
 
           <div className="mt-10 space-y-6 max-w-md">
@@ -92,7 +92,7 @@ const PartnersPage = () => {
               { title: 'Tiendas de Accesorios', desc: 'Publica tu inventario de cascos, equipamiento y refacciones en la tienda Motoluv.' },
               { title: 'Agencias de Motocicletas', desc: 'Comercializa unidades seminuevas y garantizadas con respaldo técnico.' },
               { title: 'Financieras', desc: 'Ofrece financiamiento ágil a compradores pre-verificados.' },
-              { title: 'Eventos', desc: 'Promociona rodadas, expos y competencias dentro de nuestra comunidad.' },
+              { title: 'Seguros', desc: 'Ofrece seguros especializados para motociclistas dentro de nuestra plataforma.' },
             ].map((it, i) => (
               <div key={i} className="flex gap-4 p-3.5 rounded-md bg-[#111112] border border-white/5 hover:border-[#E10600]/30 transition-colors">
                 <div className="w-8 h-8 rounded-md border border-[#E10600]/40 bg-[#E10600]/10 flex items-center justify-center flex-shrink-0">

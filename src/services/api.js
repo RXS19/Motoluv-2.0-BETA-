@@ -1771,7 +1771,25 @@ export const uploadApi = {
 };
 
 export const partnerApi = {
-  apply: (data) => api.post('/partners', data).then((r) => r.data),
+  apply: async (data) => {
+    const payload = {
+      name: data?.name,
+      position: data?.position,
+      company_name: data?.company_name,
+      category: data?.category,
+      phone: data?.phone,
+      email: data?.email,
+      message: data?.message,
+    };
+    const { data: result, error } = await supabase
+      .from('partners')
+      .insert([payload])
+      .select('*')
+      .single();
+
+    if (error) throw error;
+    return result;
+  },
 };
 
 // 5 Operation Notifications Definitions
