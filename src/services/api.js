@@ -1781,14 +1781,13 @@ export const partnerApi = {
       email: data?.email,
       message: data?.message,
     };
-    const { data: result, error } = await supabase
+    const { error } = await supabase
       .from('partners')
-      .insert([payload])
-      .select('*')
-      .single();
+      .insert([payload]);
 
     if (error) throw error;
-    return result;
+
+    return true;
   },
 };
 
